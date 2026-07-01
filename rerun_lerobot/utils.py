@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 @contextmanager
 def suppress_ffmpeg_output() -> Iterator[None]:
-    with open(os.devnull, "w") as devnull:
+    with open(os.devnull, "w", encoding="utf-8") as devnull:
         old_stdout_fd = os.dup(1)
         old_stderr_fd = os.dup(2)
         try:

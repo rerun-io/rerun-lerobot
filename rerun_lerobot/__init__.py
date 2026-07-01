@@ -1,3 +1,5 @@
+"""Convert Rerun RRD recordings into LeRobot v3 datasets."""
+
 from __future__ import annotations
 
 from rerun_lerobot import lerobot

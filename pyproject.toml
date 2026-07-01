@@ -1,6 +1,6 @@
 [project]
 name = "rerun-lerobot"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Convert Rerun RRD recordings into LeRobot v3 datasets."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
@@ -19,16 +19,17 @@ classifiers = [
 ]
 dependencies = [
   "av",
-  "datafusion",
   "lerobot>=0.4.2",
   "numpy",
   "pandas",
   "pillow",
   "pyarrow",
   # rr.server.Server (used to query RRD files) requires rerun-sdk >= 0.27.
-  # Note: LeRobot pins rerun-sdk < 0.27, so this constraint must be overridden
-  # at install time. See the README for details.
-  "rerun-sdk>=0.27",
+  # LeRobot pins rerun-sdk < 0.27, so this constraint is overridden below via
+  # `[tool.uv] override-dependencies`. See the README for non-uv installs.
+  # The `datafusion` extra pins a datafusion version compatible with rerun's
+  # catalog client (a plain `datafusion` dep resolves too new).
+  "rerun-sdk[datafusion]>=0.27",
   "scipy",
   "tqdm",
 ]
@@ -54,19 +55,76 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.version]
+path = "rerun_lerobot/__init__.py"
+variable = "__version__"
+
 [tool.hatch.build.targets.wheel]
 packages = ["rerun_lerobot"]
 
 [tool.hatch.build.targets.sdist]
 include = ["rerun_lerobot", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 
+[tool.uv]
+# LeRobot pins `rerun-sdk < 0.27`, but the OSS server API this package relies on
+# needs `>= 0.27`. Override LeRobot's pin so resolution succeeds.
+override-dependencies = ["rerun-sdk[datafusion]>=0.27"]
+
+# Ruff config adapted from https://github.com/rerun-io/rerun_template
 [tool.ruff]
-line-length = 120
 target-version = "py310"
 
-[tool.mypy]
-python_version = "3.10"
+# Enable unsafe fixes to allow ruff to apply fixes that may change the behavior of the code.
+# This is needed because otherwise ruff will not be able to trim whitespaces in (codegened) docstrings.
+unsafe-fixes = true
 
-[[tool.mypy.overrides]]
-module = ["lerobot.*", "av.*", "datafusion.*", "scipy.*"]
-ignore_missing_imports = true
+# Allow preview lints to be enabled (like `PLW1514` to force `encoding` on open).
+preview = true
+# But we only want to opt-in to certain preview rules!
+lint.explicit-preview-rules = true
+
+extend-exclude = [
+  "venv/",
+  "build/",
+  "dist/",
+]
+
+line-length = 120
+
+lint.select = [
+  "D",       # pydocstyle codes https://docs.astral.sh/ruff/rules/#pydocstyle-d
+  "E",       # pycodestyle error codes: https://pycodestyle.pycqa.org/en/latest/intro.html#error-codes
+  "F",       # Flake8 error codes https://flake8.pycqa.org/en/latest/user/error-codes.html
+  "I",       # Isort
+  "TID",     # flake8-tidy-imports
+  "W",       # pycodestyle warning codes: https://pycodestyle.pycqa.org/en/latest/intro.html#error-codes
+  "UP",      # pyupgrade (ensures idomatic code for supported python version)
+  "PLW1514", # Force setting `encoding` for open calls. https://docs.astral.sh/ruff/rules/unspecified-encoding/
+]
+
+lint.ignore = [
+  "D100", # Missing docstring in public module
+  "D101", # Missing docstring in public class
+  "D103", # Missing docstring in public function
+  "D202", # No blank lines allowed after function docstring
+  "D107",
+  "D203",
+  "D212",
+  "D401",
+  "D402",
+  "D415",
+  "D416",
+  "E501",   # Line too long (handled by the formatter)
+  "TID252", # allow relative imports
+  "UP007",  # Keep `Union[X, Y]` for older-Python-compatible runtime type hints
+]
+
+lint.unfixable = [
+  "PLW1514", # Automatic fix for `encoding` queries the locale, which is what we want to avoid.
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "F403"]
+
+[tool.ruff.lint.isort]
+required-imports = ["from __future__ import annotations"]

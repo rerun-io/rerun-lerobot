@@ -1,25 +1,27 @@
-# Python
+# Mac stuff:
+.DS_Store
+
+# Python stuff:
 __pycache__/
 *.py[cod]
 *.egg-info/
 .eggs/
+.ipynb_checkpoints/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
 build/
 dist/
-.mypy_cache/
-.ruff_cache/
-.pytest_cache/
 
-# Virtual environments
+# Virtual environments:
 .venv/
 venv/
 
-# uv
-# (uv.lock is committed on purpose)
+# https://github.com/lycheeverse/lychee
+.lycheecache
 
-# OS / editor
-.DS_Store
+# Cached test fixtures (downloaded on demand by the e2e test)
+tests/data/
+
+# Editors:
 .idea/
-.vscode/
-
-# Fetched sources scratch (not part of the package)
-src_fetch/

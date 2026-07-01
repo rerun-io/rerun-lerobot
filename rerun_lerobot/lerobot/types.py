@@ -56,7 +56,7 @@ class LeRobotConversionConfig:
     # Column specifications
     action: str
     state: str
-    task: str
+    task: str | None
 
     # Image/video specifications
     videos: list[VideoSpec]

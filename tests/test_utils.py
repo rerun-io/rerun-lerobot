@@ -60,8 +60,8 @@ def test_normalize_times_datetime_requires_ns() -> None:
 
 
 def test_make_time_grid_float() -> None:
-    grid = make_time_grid(0.0, 1.0, fps=4)
-    np.testing.assert_allclose(grid, [0.0, 0.25, 0.5, 0.75])
+    grid = np.asarray(make_time_grid(0.0, 1.0, fps=4), dtype=np.float64)
+    np.testing.assert_allclose(grid, np.array([0.0, 0.25, 0.5, 0.75]))
 
     # Degenerate range collapses to a single point.
     np.testing.assert_array_equal(make_time_grid(1.0, 1.0, fps=4), np.array([1.0]))

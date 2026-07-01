@@ -16,8 +16,8 @@ from rerun_lerobot.utils import normalize_times, unwrap_singleton
 
 if TYPE_CHECKING:
     import numpy.typing as npt
-
     import rerun as rr
+
     from rerun_lerobot.lerobot.types import VideoSampleData, VideoSpec
 
 
@@ -321,7 +321,10 @@ def infer_video_shape_from_table(
     decoded = decode_video_frame(
         samples=[sample_bytes], times_ns=times_ns, target_time_ns=target_time_ns, video_format=video_format
     )
-    return decoded.shape
+    if decoded.ndim != 3:
+        raise ValueError(f"Expected a decoded video frame with shape (height, width, channels), got {decoded.shape}.")
+    height, width, channels = decoded.shape
+    return (height, width, channels)
 
 
 def infer_video_shape(

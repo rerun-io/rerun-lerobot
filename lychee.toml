@@ -1,0 +1,41 @@
+################################################################################
+# Config for the link checker lychee.
+#
+# Download & learn more at:
+# https://github.com/lycheeverse/lychee
+#
+# Run `lychee . --dump` to list all found links that are being checked.
+################################################################################
+
+# Maximum number of concurrent link checks.
+# Workaround for "too many open files" error on MacOS, see https://github.com/lycheeverse/lychee/issues/1248
+max_concurrency = 32
+
+# Check links inside `<code>` and `<pre>` blocks as well as Markdown code blocks.
+include_verbatim = true
+
+# Proceed for server connections considered insecure (invalid TLS).
+insecure = true
+
+# Exclude these filesystem paths from getting checked.
+exclude_path = [
+  ".git",
+  "__pycache__",
+  "build",
+  "dist",
+  "venv",
+  ".venv",
+]
+
+# Exclude URLs and mail addresses from checking (supports regex).
+exclude = [
+  # Strings with replacements / interpolation.
+  '\{\}',
+
+  # Local links that require further setup.
+  'http://127.0.0.1',
+  'http://localhost',
+
+  # Avoid rate limiting.
+  'https://crates.io/crates/.*',
+]

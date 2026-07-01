@@ -7,9 +7,6 @@ format used for imitation-learning training pipelines in PyTorch. It loads RRD f
 types from the recordings, resamples all time series to a target frame rate, and writes a LeRobot v3
 dataset. Video streams are efficiently remuxed without re-encoding.
 
-This package started life as the [`rerun_export` example](https://github.com/rerun-io/rerun/tree/main/examples/python/rerun_export)
-in the Rerun repository.
-
 ## Installation
 
 ```bash
@@ -133,11 +130,16 @@ convert_rrd_dataset_to_lerobot(
 ## Development
 
 ```bash
-uv sync
-uv run pytest
-uv run mypy rerun_lerobot
+uv sync --dev
+uv run ruff format --check
 uv run ruff check
+uv run mypy
+uv run pytest
 ```
+
+The end-to-end test (`tests/test_e2e.py`) downloads a small public RRD sample and
+runs a full conversion; it is cached under `tests/data/` and skips automatically
+when offline.
 
 ## License
 

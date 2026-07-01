@@ -6,10 +6,10 @@ import time
 from pathlib import Path
 
 import pyarrow as pa
+import rerun as rr
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 from tqdm import tqdm
 
-import rerun as rr
 from rerun_lerobot.lerobot.converter import convert_dataframe_to_episode
 from rerun_lerobot.lerobot.feature_inference import infer_features
 from rerun_lerobot.lerobot.types import LeRobotConversionConfig, VideoSpec
