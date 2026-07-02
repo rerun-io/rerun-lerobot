@@ -11,6 +11,7 @@ import rerun as rr
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 from tqdm import tqdm
 
+from rerun_lerobot.inspection import DatasetInspection, classify_schema
 from rerun_lerobot.lerobot.converter import convert_dataframe_to_episode
 from rerun_lerobot.lerobot.feature_inference import infer_features
 from rerun_lerobot.utils import split_dataset_url
@@ -19,6 +20,44 @@ if TYPE_CHECKING:
     from rerun.catalog import DatasetEntry
 
     from rerun_lerobot.lerobot.types import LeRobotConversionConfig
+
+
+def _num_segments(dataset: DatasetEntry) -> int | None:
+    try:
+        return len(dataset.segment_ids())
+    except Exception:
+        return None
+
+
+def inspect_dataset(dataset: DatasetEntry) -> DatasetInspection:
+    """Inspect a connected dataset and classify its columns (see :mod:`rerun_lerobot.inspection`)."""
+    return classify_schema(
+        dataset.arrow_schema(),
+        dataset_name=dataset.name,
+        num_segments=_num_segments(dataset),
+    )
+
+
+def inspect_rrd_dataset(rrd_dir: Path, *, dataset_name: str = "rrd_dataset") -> DatasetInspection:
+    """Inspect a local directory of RRD recordings, served by a local OSS server."""
+    if not rrd_dir.is_dir():
+        raise ValueError(f"RRD directory does not exist or is not a directory: {rrd_dir}")
+    with rr.server.Server(datasets={dataset_name: rrd_dir}) as server:
+        dataset = server.client().get_dataset(name=dataset_name)
+        return inspect_dataset(dataset)
+
+
+def inspect_catalog_dataset(*, catalog_url: str, dataset_name: str, token: str | None = None) -> DatasetInspection:
+    """Inspect a dataset in a remote Rerun catalog, looked up by name."""
+    client = rr.catalog.CatalogClient(catalog_url, token=token)
+    return inspect_dataset(client.get_dataset(name=dataset_name))
+
+
+def inspect_dataset_url(dataset_url: str, *, token: str | None = None) -> DatasetInspection:
+    """Inspect a dataset addressed by a full Rerun dataset URL."""
+    catalog_url, entry_id = split_dataset_url(dataset_url)
+    client = rr.catalog.CatalogClient(catalog_url, token=token)
+    return inspect_dataset(client.get_dataset(id=entry_id))
 
 
 def convert_dataset_to_lerobot(

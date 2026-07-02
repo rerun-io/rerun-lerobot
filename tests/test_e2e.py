@@ -95,6 +95,30 @@ def test_convert_rrd_dir_to_lerobot(rrd_dir: Path, tmp_path: Path) -> None:
     _assert_valid_dataset(output_dir)
 
 
+def test_inspect_rrd_dataset(rrd_dir: Path) -> None:
+    from rerun_lerobot.lerobot.export import inspect_rrd_dataset
+
+    inspection = inspect_rrd_dataset(rrd_dir, dataset_name=DATASET_NAME)
+
+    # The animated_urdf sample has Transform3D translation (3) and quaternion (4).
+    names = {c.name for c in inspection.action_state_candidates}
+    assert "/transforms:Transform3D:translation" in names
+    assert "/transforms:Transform3D:quaternion" in names
+    dims = {c.name: c.dim for c in inspection.action_state_candidates}
+    assert dims["/transforms:Transform3D:translation"] == 3
+    assert dims["/transforms:Transform3D:quaternion"] == 4
+
+    timeline_names = {t.name for t in inspection.timelines}
+    assert "log_time" in timeline_names
+
+    # No spurious asset/property candidates leak in.
+    assert not any(c.component == "Asset3D" for c in inspection.action_state_candidates)
+    assert not any(c.name.startswith("property:") for c in inspection.action_state_candidates)
+
+    report = inspection.format_report()
+    assert "Action / state candidates" in report
+
+
 def test_convert_catalog_to_lerobot(rrd_dir: Path, tmp_path: Path) -> None:
     import rerun as rr
 

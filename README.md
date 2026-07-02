@@ -91,6 +91,41 @@ rerun-lerobot \
   --video front:/camera/front
 ```
 
+### Guided start: discovering columns
+
+You don't need to know the exact column names up front. Start with just a source and an output:
+
+```bash
+rerun-lerobot \
+  --dataset-url rerun://api.latest-eu.cloud.rerun.io:443/entry/18B40C6FA7631F942c0e90030ac230fa \
+  --output /tmp/lerobot
+```
+
+Because `--action`, `--state`, and `--fps` are missing, the tool connects to the dataset, prints the
+convertible columns it found — action/state candidates (numeric vectors, with dimensions), timelines
+for `--index`, task-text candidates, and video streams — and suggests a full command to copy, edit,
+and re-run. Pass `--inspect` to do this explicitly without converting.
+
+```
+Action / state candidates (numeric vector columns):
+  /robot/action:Scalars:scalars          dim 7    [Scalars]
+  /observation/joints:Scalars:scalars     dim 6    [Scalars]
+  ...
+Timelines (for --index):
+  log_time      (timestamp[ns])
+  ...
+Suggested command:
+  rerun-lerobot --dataset-url ... \
+    --output /tmp/lerobot \
+    --fps 10 \
+    --index log_time \
+    --action /robot/action:Scalars:scalars \
+    --state /observation/joints:Scalars:scalars
+```
+
+The action/state picks are best-guesses (by name, else the first candidates) — review them: the tool
+cannot know which numeric column is the *commanded* action vs the *observed* state.
+
 ### Column specification format
 
 Action, state, and task columns are specified as fully qualified columns:
@@ -187,6 +222,28 @@ convert_dataset_url_to_lerobot(
 Both delegate to `convert_dataset_to_lerobot(dataset, ...)`, which works on any connected
 [`rerun.catalog.DatasetEntry`](https://ref.rerun.io/docs/python/stable/catalog/) if you already
 have one.
+
+To discover columns before building a config (the same guidance the CLI prints), use the matching
+`inspect_*` function — each returns a `DatasetInspection` you can read or format:
+
+```python
+from rerun_lerobot.lerobot.export import inspect_dataset_url
+
+inspection = inspect_dataset_url(
+    "rerun://api.latest-eu.cloud.rerun.io:443/entry/18B40C6FA7631F942c0e90030ac230fa",
+    token=None,
+)
+print(inspection.format_report())
+
+for candidate in inspection.action_state_candidates:
+    print(candidate.name, candidate.dim, candidate.component)
+
+action_guess, state_guess = inspection.guess_action_and_state()
+index_guess = inspection.guess_index()
+```
+
+There is also `inspect_catalog_dataset(...)`, `inspect_rrd_dataset(...)`, and
+`inspect_dataset(dataset)` for an already-connected `DatasetEntry`.
 
 ## Running locally (without publishing to PyPI)
 

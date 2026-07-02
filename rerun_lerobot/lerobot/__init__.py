@@ -20,6 +20,10 @@ if TYPE_CHECKING:
         convert_dataset_to_lerobot,
         convert_dataset_url_to_lerobot,
         convert_rrd_dataset_to_lerobot,
+        inspect_catalog_dataset,
+        inspect_dataset,
+        inspect_dataset_url,
+        inspect_rrd_dataset,
     )
     from rerun_lerobot.lerobot.feature_inference import infer_features
     from rerun_lerobot.lerobot.video_processing import (
@@ -46,6 +50,10 @@ _LAZY_ATTRS = {
     "infer_features": "rerun_lerobot.lerobot.feature_inference",
     "infer_video_shape": "rerun_lerobot.lerobot.video_processing",
     "infer_video_shape_from_table": "rerun_lerobot.lerobot.video_processing",
+    "inspect_catalog_dataset": "rerun_lerobot.lerobot.export",
+    "inspect_dataset": "rerun_lerobot.lerobot.export",
+    "inspect_dataset_url": "rerun_lerobot.lerobot.export",
+    "inspect_rrd_dataset": "rerun_lerobot.lerobot.export",
     "remux_video_stream": "rerun_lerobot.lerobot.video_processing",
 }
 
@@ -78,5 +86,9 @@ __all__ = [
     "infer_features",
     "infer_video_shape",
     "infer_video_shape_from_table",
+    "inspect_catalog_dataset",
+    "inspect_dataset",
+    "inspect_dataset_url",
+    "inspect_rrd_dataset",
     "remux_video_stream",
 ]
