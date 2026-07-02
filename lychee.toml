@@ -37,10 +37,9 @@ exclude = [
   'http://localhost',
 
   # Rerun catalog / dataset URLs (custom scheme, not HTTP-checkable). Covers
-  # both real hosts and `host:port` placeholders in docs/help text.
-  'rerun://',
-  'rerun\+http://',
-  'rerun:/',
+  # both real hosts and `host:port` placeholders in docs/help text. Slash-agnostic
+  # because lychee collapses "//" to "/" before matching.
+  'rerun(\+http)?:',
 
   # Avoid rate limiting.
   'https://crates.io/crates/.*',
