@@ -167,7 +167,7 @@ def split_dataset_url(dataset_url: str) -> tuple[str, str]:
 
     Args:
         dataset_url: Full Rerun dataset entry URL, e.g.
-            "rerun://api.latest-eu.cloud.rerun.io:443/entry/18B40C6FA7631F942c0e90030ac230fa".
+            "rerun://hostname:443/entry/18B40C6FA7631F942c0e90030ac230fa".
 
     Returns:
         A tuple of (catalog_url, entry_id), where catalog_url is the

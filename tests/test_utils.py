@@ -100,9 +100,9 @@ def test_config_get_filter_list() -> None:
 
 
 def test_split_dataset_url() -> None:
-    url = "rerun://api.latest-eu.cloud.rerun.io:443/entry/18B40C6FA7631F942c0e90030ac230fa"
+    url = "rerun://hostname:443/entry/18B40C6FA7631F942c0e90030ac230fa"
     catalog_url, entry_id = split_dataset_url(url)
-    assert catalog_url == "rerun://api.latest-eu.cloud.rerun.io:443"
+    assert catalog_url == "rerun://hostname:443"
     assert entry_id == "18B40C6FA7631F942c0e90030ac230fa"
 
     # Bare trailing id (no `/entry/` segment) is also accepted.

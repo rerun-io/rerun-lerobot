@@ -39,6 +39,18 @@ If a new `rerun-sdk` moves `datafusion` to a new major version, `uv run pytest`
 will fail with `RerunIncompatibleDependencyVersionError` — that means the
 `rerun-sdk[datafusion]` extra is doing its job; just re-run `uv lock --upgrade`.
 
+## Make sure CI is green
+
+Push your changes and confirm the `Python` workflow passes on the release commit
+before tagging or publishing — a green local run is not enough.
+
+```bash
+git push
+gh run watch "$(gh run list --workflow python.yml --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
+```
+
+Do not proceed to publish/tag until CI reports `success`.
+
 ## Bump the version number
 
 The version lives in a single place — `rerun_lerobot/__init__.py`

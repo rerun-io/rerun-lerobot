@@ -60,7 +60,7 @@ def _parse_args() -> argparse.Namespace:
         "--dataset-url",
         default=None,
         help="Full Rerun dataset entry URL, e.g. "
-        "'rerun://api.latest-eu.cloud.rerun.io:443/entry/18B40C6FA7631F942c0e90030ac230fa'. "
+        "'rerun://hostname:443/entry/18B40C6FA7631F942c0e90030ac230fa'. "
         "Bundles the catalog server and dataset id; no --dataset-name needed.",
     )
 

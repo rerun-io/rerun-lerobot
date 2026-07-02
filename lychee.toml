@@ -36,6 +36,12 @@ exclude = [
   'http://127.0.0.1',
   'http://localhost',
 
+  # Rerun catalog / dataset URLs (custom scheme, not HTTP-checkable). Covers
+  # both real hosts and `host:port` placeholders in docs/help text.
+  'rerun://',
+  'rerun\+http://',
+  'rerun:/',
+
   # Avoid rate limiting.
   'https://crates.io/crates/.*',
 ]

@@ -2,4 +2,8 @@
 # install:  cargo install typos-cli
 # run:      typos
 
+[default.extend-identifiers]
+# "PNGs" tokenizes to "PN" which typos flags as a typo of "ON".
+PNGs = "PNGs"
+
 [default.extend-words]

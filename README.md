@@ -82,7 +82,7 @@ needed; `--catalog-token` still applies for auth):
 
 ```bash
 rerun-lerobot \
-  --dataset-url rerun://api.latest-eu.cloud.rerun.io:443/entry/18B40C6FA7631F942c0e90030ac230fa \
+  --dataset-url rerun://hostname:443/entry/18B40C6FA7631F942c0e90030ac230fa \
   --output /path/to/output/dataset \
   --fps 10 \
   --index real_time \
@@ -97,7 +97,7 @@ You don't need to know the exact column names up front. Start with just a source
 
 ```bash
 rerun-lerobot \
-  --dataset-url rerun://api.latest-eu.cloud.rerun.io:443/entry/18B40C6FA7631F942c0e90030ac230fa \
+  --dataset-url rerun://hostname:443/entry/18B40C6FA7631F942c0e90030ac230fa \
   --output /tmp/lerobot
 ```
 
@@ -234,7 +234,7 @@ convert_catalog_dataset_to_lerobot(
 
 # ...or straight from a Rerun dataset URL:
 convert_dataset_url_to_lerobot(
-    dataset_url="rerun://api.latest-eu.cloud.rerun.io:443/entry/18B40C6FA7631F942c0e90030ac230fa",
+    dataset_url="rerun://hostname:443/entry/18B40C6FA7631F942c0e90030ac230fa",
     token=None,  # or an auth token
     output_dir=Path("./lerobot_dataset"),
     repo_id="robot_demos",
@@ -253,7 +253,7 @@ To discover columns before building a config (the same guidance the CLI prints),
 from rerun_lerobot.lerobot.export import inspect_dataset_url
 
 inspection = inspect_dataset_url(
-    "rerun://api.latest-eu.cloud.rerun.io:443/entry/18B40C6FA7631F942c0e90030ac230fa",
+    "rerun://hostname:443/entry/18B40C6FA7631F942c0e90030ac230fa",
     token=None,
 )
 print(inspection.format_report())

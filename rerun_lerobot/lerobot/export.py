@@ -304,7 +304,7 @@ def convert_dataset_url_to_lerobot(
     Convert a dataset addressed by a full Rerun dataset URL to a LeRobot v3 dataset.
 
     The URL bundles the catalog server and the dataset entry id, e.g.
-    ``rerun://api.latest-eu.cloud.rerun.io:443/entry/18B40C6FA7631F942c0e90030ac230fa``.
+    ``rerun://hostname:443/entry/18B40C6FA7631F942c0e90030ac230fa``.
     It is split into a catalog server URL and an entry id, and the dataset is
     looked up by id via :class:`rerun.catalog.CatalogClient`.
 
