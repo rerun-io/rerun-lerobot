@@ -15,6 +15,11 @@ from rerun_lerobot.lerobot.types import (
 
 if TYPE_CHECKING:
     from rerun_lerobot.lerobot.converter import apply_remuxed_videos, convert_dataframe_to_episode
+    from rerun_lerobot.lerobot.export import (
+        convert_catalog_dataset_to_lerobot,
+        convert_dataset_to_lerobot,
+        convert_rrd_dataset_to_lerobot,
+    )
     from rerun_lerobot.lerobot.feature_inference import infer_features
     from rerun_lerobot.lerobot.video_processing import (
         can_remux_video,
@@ -30,7 +35,10 @@ if TYPE_CHECKING:
 _LAZY_ATTRS = {
     "apply_remuxed_videos": "rerun_lerobot.lerobot.converter",
     "can_remux_video": "rerun_lerobot.lerobot.video_processing",
+    "convert_catalog_dataset_to_lerobot": "rerun_lerobot.lerobot.export",
     "convert_dataframe_to_episode": "rerun_lerobot.lerobot.converter",
+    "convert_dataset_to_lerobot": "rerun_lerobot.lerobot.export",
+    "convert_rrd_dataset_to_lerobot": "rerun_lerobot.lerobot.export",
     "decode_video_frame": "rerun_lerobot.lerobot.video_processing",
     "extract_video_samples": "rerun_lerobot.lerobot.video_processing",
     "infer_features": "rerun_lerobot.lerobot.feature_inference",
@@ -58,7 +66,10 @@ __all__ = [
     "VideoSpec",
     "apply_remuxed_videos",
     "can_remux_video",
+    "convert_catalog_dataset_to_lerobot",
     "convert_dataframe_to_episode",
+    "convert_dataset_to_lerobot",
+    "convert_rrd_dataset_to_lerobot",
     "decode_video_frame",
     "extract_video_samples",
     "infer_features",

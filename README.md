@@ -2,8 +2,9 @@
 
 Convert [Rerun](https://rerun.io) RRD recordings into [LeRobot](https://github.com/huggingface/lerobot) v3 datasets.
 
-`rerun-lerobot` uses the Rerun OSS server API to query and transform RRD files into the LeRobot v3
-format used for imitation-learning training pipelines in PyTorch. It loads RRD files, infers data
+`rerun-lerobot` uses the Rerun catalog API to query and transform recordings into the LeRobot v3
+format used for imitation-learning training pipelines in PyTorch. The source can be a local
+directory of RRD files (served by the OSS Rerun server) or a remote Rerun catalog. It infers data
 types from the recordings, resamples all time series to a target frame rate, and writes a LeRobot v3
 dataset. Video streams are efficiently remuxed without re-encoding.
 
@@ -42,8 +43,11 @@ pip install --upgrade "rerun-sdk>=0.27"
 
 ## Usage
 
-The package installs a `rerun-lerobot` CLI that converts a directory of RRD recordings into a
-LeRobot v3 dataset:
+The package installs a `rerun-lerobot` CLI that converts recordings into a LeRobot v3 dataset.
+The source is either a local directory of RRD files (`--rrd-dir`) or a remote Rerun catalog
+(`--catalog-url`) — exactly one is required.
+
+From a directory of RRD recordings:
 
 ```bash
 rerun-lerobot \
@@ -55,6 +59,21 @@ rerun-lerobot \
   --action /action:Scalars:scalars \
   --state /observation/joint_positions:Scalars:scalars \
   --task /language_instruction:TextDocument:text \
+  --video front:/camera/front
+```
+
+From a Rerun catalog server (looked up by `--dataset-name`, optional `--catalog-token` for auth):
+
+```bash
+rerun-lerobot \
+  --catalog-url rerun+http://my-catalog-host:51234 \
+  --dataset-name my_robot_dataset \
+  --catalog-token "$RERUN_TOKEN" \
+  --output /path/to/output/dataset \
+  --fps 10 \
+  --index real_time \
+  --action /action:Scalars:scalars \
+  --state /observation/joint_positions:Scalars:scalars \
   --video front:/camera/front
 ```
 
@@ -107,7 +126,10 @@ The output directory contains:
 from pathlib import Path
 
 from rerun_lerobot import LeRobotConversionConfig, VideoSpec
-from rerun_lerobot.__main__ import convert_rrd_dataset_to_lerobot
+from rerun_lerobot.lerobot.export import (
+    convert_catalog_dataset_to_lerobot,
+    convert_rrd_dataset_to_lerobot,
+)
 
 config = LeRobotConversionConfig(
     fps=15,
@@ -118,6 +140,7 @@ config = LeRobotConversionConfig(
     videos=[VideoSpec(key="front", path="/camera/front")],
 )
 
+# From a local directory of RRD files:
 convert_rrd_dataset_to_lerobot(
     rrd_dir=Path("./robot_recordings"),
     output_dir=Path("./lerobot_dataset"),
@@ -125,6 +148,46 @@ convert_rrd_dataset_to_lerobot(
     repo_id="robot_demos",
     config=config,
 )
+
+# ...or from a remote Rerun catalog:
+convert_catalog_dataset_to_lerobot(
+    catalog_url="rerun+http://my-catalog-host:51234",
+    dataset_name="robot_demos",
+    token=None,  # or an auth token
+    output_dir=Path("./lerobot_dataset"),
+    repo_id="robot_demos",
+    config=config,
+)
+```
+
+Both delegate to `convert_dataset_to_lerobot(dataset, ...)`, which works on any connected
+[`rerun.catalog.DatasetEntry`](https://ref.rerun.io/docs/python/stable/catalog/) if you already
+have one.
+
+## Running locally (without publishing to PyPI)
+
+To run the `rerun-lerobot` CLI straight from a checkout of this repo:
+
+```bash
+uv sync --dev          # create .venv with the package installed (editable)
+uv run rerun-lerobot --help
+```
+
+`uv run` executes the entry point from the local source — no build or PyPI upload needed, and edits
+to the code take effect immediately. Alternatively, activate the environment and call the binary
+directly:
+
+```bash
+source .venv/bin/activate
+rerun-lerobot --help
+```
+
+Or, without cloning, run the latest source from GitHub in a throwaway environment (note the
+`rerun-sdk` override, see above):
+
+```bash
+uv run --with "git+https://github.com/rerun-io/rerun-lerobot" --with "rerun-sdk>=0.27" \
+  --no-project -- rerun-lerobot --help
 ```
 
 ## Development

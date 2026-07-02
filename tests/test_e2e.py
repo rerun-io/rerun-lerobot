@@ -1,13 +1,18 @@
 """
-End-to-end test: convert a real RRD recording into a LeRobot v3 dataset.
+End-to-end tests: convert a real Rerun recording into a LeRobot v3 dataset.
 
 Uses the public ``animated_urdf.rrd`` sample (an animated SO-ARM100 URDF). The
 recording has no scalar/video streams, so we map the ``/transforms`` archetype's
 translation (3-vector) to ``action`` and its quaternion (4-vector) to
 ``observation.state`` — enough to exercise the full query → resample → write path.
 
+Two sources are exercised:
+- a local directory of RRD files (``convert_rrd_dataset_to_lerobot``), and
+- a Rerun catalog (``convert_catalog_dataset_to_lerobot``), served here by a
+  local OSS server whose URL we hand to ``CatalogClient``.
+
 The RRD is downloaded on demand and cached under ``tests/data/`` (gitignored).
-The test skips gracefully when the heavy dependencies are missing or the sample
+The tests skip gracefully when the heavy dependencies are missing or the sample
 cannot be downloaded (e.g. offline CI).
 """
 
@@ -25,9 +30,12 @@ import pytest
 pytest.importorskip("rerun")
 pytest.importorskip("lerobot")
 
+from rerun_lerobot.lerobot.types import LeRobotConversionConfig  # noqa: E402
+
 RRD_URL = "https://app.rerun.io/version/0.33.0/examples/animated_urdf.rrd"
 DATA_DIR = Path(__file__).parent / "data"
 RRD_PATH = DATA_DIR / "animated_urdf.rrd"
+DATASET_NAME = "animated_urdf"
 
 
 @pytest.fixture(scope="session")
@@ -44,15 +52,9 @@ def rrd_dir() -> Path:
     return DATA_DIR
 
 
-def test_convert_animated_urdf_to_lerobot(rrd_dir: Path, tmp_path: Path) -> None:
-    from rerun_lerobot.__main__ import convert_rrd_dataset_to_lerobot
-    from rerun_lerobot.lerobot.types import LeRobotConversionConfig
-
-    output_dir = tmp_path / "dataset"
-    fps = 10
-
-    config = LeRobotConversionConfig(
-        fps=fps,
+def _make_config() -> LeRobotConversionConfig:
+    return LeRobotConversionConfig(
+        fps=10,
         index_column="log_time",
         action="/transforms:Transform3D:translation",
         state="/transforms:Transform3D:quaternion",
@@ -60,22 +62,15 @@ def test_convert_animated_urdf_to_lerobot(rrd_dir: Path, tmp_path: Path) -> None
         videos=[],
     )
 
-    convert_rrd_dataset_to_lerobot(
-        rrd_dir=rrd_dir,
-        output_dir=output_dir,
-        dataset_name="animated_urdf",
-        repo_id="animated_urdf",
-        config=config,
-    )
 
-    # LeRobot v3 layout.
+def _assert_valid_dataset(output_dir: Path) -> None:
     info_path = output_dir / "meta" / "info.json"
     assert info_path.is_file(), "missing meta/info.json"
     assert list(output_dir.glob("data/**/*.parquet")), "no data parquet files written"
     assert list(output_dir.glob("meta/episodes/**/*.parquet")), "no episode metadata written"
 
     info = json.loads(info_path.read_text(encoding="utf-8"))
-    assert info["fps"] == fps
+    assert info["fps"] == 10
     assert info["total_episodes"] == 1
     assert info["total_frames"] > 0
 
@@ -84,3 +79,36 @@ def test_convert_animated_urdf_to_lerobot(rrd_dir: Path, tmp_path: Path) -> None
     assert tuple(features["action"]["shape"]) == (3,)
     assert features["observation.state"]["dtype"] == "float32"
     assert tuple(features["observation.state"]["shape"]) == (4,)
+
+
+def test_convert_rrd_dir_to_lerobot(rrd_dir: Path, tmp_path: Path) -> None:
+    from rerun_lerobot.lerobot.export import convert_rrd_dataset_to_lerobot
+
+    output_dir = tmp_path / "dataset"
+    convert_rrd_dataset_to_lerobot(
+        rrd_dir=rrd_dir,
+        output_dir=output_dir,
+        dataset_name=DATASET_NAME,
+        repo_id=DATASET_NAME,
+        config=_make_config(),
+    )
+    _assert_valid_dataset(output_dir)
+
+
+def test_convert_catalog_to_lerobot(rrd_dir: Path, tmp_path: Path) -> None:
+    import rerun as rr
+
+    from rerun_lerobot.lerobot.export import convert_catalog_dataset_to_lerobot
+
+    output_dir = tmp_path / "dataset"
+
+    # Serve the sample with a local OSS server and treat it as a remote catalog.
+    with rr.server.Server(datasets={DATASET_NAME: str(rrd_dir)}) as server:
+        convert_catalog_dataset_to_lerobot(
+            catalog_url=server.url(),
+            dataset_name=DATASET_NAME,
+            output_dir=output_dir,
+            repo_id=DATASET_NAME,
+            config=_make_config(),
+        )
+    _assert_valid_dataset(output_dir)
