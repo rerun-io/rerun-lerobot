@@ -44,8 +44,8 @@ pip install --upgrade "rerun-sdk>=0.27"
 ## Usage
 
 The package installs a `rerun-lerobot` CLI that converts recordings into a LeRobot v3 dataset.
-The source is either a local directory of RRD files (`--rrd-dir`) or a remote Rerun catalog
-(`--catalog-url`) — exactly one is required.
+Exactly one source is required: a local directory of RRD files (`--rrd-dir`), a remote Rerun
+catalog server plus dataset name (`--catalog-url`), or a full Rerun dataset URL (`--dataset-url`).
 
 From a directory of RRD recordings:
 
@@ -69,6 +69,20 @@ rerun-lerobot \
   --catalog-url rerun+http://my-catalog-host:51234 \
   --dataset-name my_robot_dataset \
   --catalog-token "$RERUN_TOKEN" \
+  --output /path/to/output/dataset \
+  --fps 10 \
+  --index real_time \
+  --action /action:Scalars:scalars \
+  --state /observation/joint_positions:Scalars:scalars \
+  --video front:/camera/front
+```
+
+Directly from a Rerun dataset URL (bundles the catalog server and dataset id — no `--dataset-name`
+needed; `--catalog-token` still applies for auth):
+
+```bash
+rerun-lerobot \
+  --dataset-url rerun://api.latest-eu.cloud.rerun.io:443/entry/18B40C6FA7631F942c0e90030ac230fa \
   --output /path/to/output/dataset \
   --fps 10 \
   --index real_time \
@@ -128,6 +142,7 @@ from pathlib import Path
 from rerun_lerobot import LeRobotConversionConfig, VideoSpec
 from rerun_lerobot.lerobot.export import (
     convert_catalog_dataset_to_lerobot,
+    convert_dataset_url_to_lerobot,
     convert_rrd_dataset_to_lerobot,
 )
 
@@ -153,6 +168,15 @@ convert_rrd_dataset_to_lerobot(
 convert_catalog_dataset_to_lerobot(
     catalog_url="rerun+http://my-catalog-host:51234",
     dataset_name="robot_demos",
+    token=None,  # or an auth token
+    output_dir=Path("./lerobot_dataset"),
+    repo_id="robot_demos",
+    config=config,
+)
+
+# ...or straight from a Rerun dataset URL:
+convert_dataset_url_to_lerobot(
+    dataset_url="rerun://api.latest-eu.cloud.rerun.io:443/entry/18B40C6FA7631F942c0e90030ac230fa",
     token=None,  # or an auth token
     output_dir=Path("./lerobot_dataset"),
     repo_id="robot_demos",

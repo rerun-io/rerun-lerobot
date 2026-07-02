@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from rerun_lerobot.lerobot.export import (
         convert_catalog_dataset_to_lerobot,
         convert_dataset_to_lerobot,
+        convert_dataset_url_to_lerobot,
         convert_rrd_dataset_to_lerobot,
     )
     from rerun_lerobot.lerobot.feature_inference import infer_features
@@ -38,6 +39,7 @@ _LAZY_ATTRS = {
     "convert_catalog_dataset_to_lerobot": "rerun_lerobot.lerobot.export",
     "convert_dataframe_to_episode": "rerun_lerobot.lerobot.converter",
     "convert_dataset_to_lerobot": "rerun_lerobot.lerobot.export",
+    "convert_dataset_url_to_lerobot": "rerun_lerobot.lerobot.export",
     "convert_rrd_dataset_to_lerobot": "rerun_lerobot.lerobot.export",
     "decode_video_frame": "rerun_lerobot.lerobot.video_processing",
     "extract_video_samples": "rerun_lerobot.lerobot.video_processing",
@@ -69,6 +71,7 @@ __all__ = [
     "convert_catalog_dataset_to_lerobot",
     "convert_dataframe_to_episode",
     "convert_dataset_to_lerobot",
+    "convert_dataset_url_to_lerobot",
     "convert_rrd_dataset_to_lerobot",
     "decode_video_frame",
     "extract_video_samples",

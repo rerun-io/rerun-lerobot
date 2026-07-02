@@ -7,6 +7,7 @@ from pathlib import Path
 from rerun_lerobot.lerobot.export import (
     convert_catalog_dataset_to_lerobot,
     convert_dataset_to_lerobot,
+    convert_dataset_url_to_lerobot,
     convert_rrd_dataset_to_lerobot,
 )
 from rerun_lerobot.lerobot.types import LeRobotConversionConfig, VideoSpec
@@ -14,6 +15,7 @@ from rerun_lerobot.lerobot.types import LeRobotConversionConfig, VideoSpec
 __all__ = [
     "convert_catalog_dataset_to_lerobot",
     "convert_dataset_to_lerobot",
+    "convert_dataset_url_to_lerobot",
     "convert_rrd_dataset_to_lerobot",
     "main",
 ]
@@ -50,8 +52,19 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="URL of a Rerun catalog server (e.g. 'rerun+http://host:port'). Use with --dataset-name.",
     )
+    source.add_argument(
+        "--dataset-url",
+        default=None,
+        help="Full Rerun dataset entry URL, e.g. "
+        "'rerun://api.latest-eu.cloud.rerun.io:443/entry/18B40C6FA7631F942c0e90030ac230fa'. "
+        "Bundles the catalog server and dataset id; no --dataset-name needed.",
+    )
 
-    parser.add_argument("--catalog-token", default=None, help="Optional auth token for the catalog server.")
+    parser.add_argument(
+        "--catalog-token",
+        default=None,
+        help="Optional auth token for the catalog server (use with --catalog-url or --dataset-url).",
+    )
     parser.add_argument("--output", type=Path, required=True, help="Output directory for the LeRobot dataset.")
     parser.add_argument(
         "--dataset-name",
@@ -97,7 +110,19 @@ def main() -> None:
         state_names=_parse_name_list(args.state_names),
     )
 
-    if args.catalog_url is not None:
+    if args.dataset_url is not None:
+        # repo_id defaults to the entry id (the last URL path segment).
+        repo_id = args.repo_id or args.dataset_url.rstrip("/").split("/")[-1]
+        convert_dataset_url_to_lerobot(
+            dataset_url=args.dataset_url,
+            token=args.catalog_token,
+            output_dir=args.output,
+            repo_id=repo_id,
+            config=config,
+            segments=args.segments,
+            max_segments=args.max_segments,
+        )
+    elif args.catalog_url is not None:
         if not args.dataset_name:
             raise ValueError("--dataset-name is required when using --catalog-url.")
         repo_id = args.repo_id or args.dataset_name
@@ -113,7 +138,7 @@ def main() -> None:
         )
     else:
         if args.catalog_token is not None:
-            raise ValueError("--catalog-token is only valid with --catalog-url.")
+            raise ValueError("--catalog-token is only valid with --catalog-url or --dataset-url.")
         dataset_name = args.dataset_name or "rrd_dataset"
         repo_id = args.repo_id or dataset_name
         convert_rrd_dataset_to_lerobot(

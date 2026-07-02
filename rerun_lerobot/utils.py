@@ -159,3 +159,42 @@ def get_entity_path(fully_qualified_column: str | None) -> str | None:
     if fully_qualified_column is None:
         return None
     return fully_qualified_column.split(":")[0]
+
+
+def split_dataset_url(dataset_url: str) -> tuple[str, str]:
+    """
+    Split a Rerun dataset entry URL into a catalog server URL and an entry id.
+
+    Args:
+        dataset_url: Full Rerun dataset entry URL, e.g.
+            "rerun://api.latest-eu.cloud.rerun.io:443/entry/18B40C6FA7631F942c0e90030ac230fa".
+
+    Returns:
+        A tuple of (catalog_url, entry_id), where catalog_url is the
+        scheme+host+port and entry_id is the dataset id.
+
+    Raises:
+        ValueError: If the URL has no host or no entry id.
+
+    Examples:
+        >>> split_dataset_url("rerun://host:443/entry/abc123")
+        ('rerun://host:443', 'abc123')
+
+    """
+    from urllib.parse import urlparse
+
+    parsed = urlparse(dataset_url)
+    if not parsed.scheme or not parsed.netloc:
+        raise ValueError(f"Invalid dataset URL (expected e.g. 'rerun://host:port/entry/<id>'): {dataset_url}")
+
+    parts = [part for part in parsed.path.split("/") if part]
+    # Accept both `/entry/<id>` and a bare trailing `<id>`.
+    if len(parts) >= 2 and parts[-2] == "entry":
+        entry_id = parts[-1]
+    elif len(parts) == 1:
+        entry_id = parts[0]
+    else:
+        raise ValueError(f"Could not find an entry id in dataset URL: {dataset_url}")
+
+    catalog_url = f"{parsed.scheme}://{parsed.netloc}"
+    return catalog_url, entry_id

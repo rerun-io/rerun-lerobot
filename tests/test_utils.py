@@ -10,6 +10,7 @@ from rerun_lerobot.utils import (
     get_entity_path,
     make_time_grid,
     normalize_times,
+    split_dataset_url,
     to_float32_vector,
     unwrap_singleton,
 )
@@ -96,3 +97,23 @@ def test_config_get_filter_list() -> None:
         "/task",
         "/camera/front",
     ]
+
+
+def test_split_dataset_url() -> None:
+    url = "rerun://api.latest-eu.cloud.rerun.io:443/entry/18B40C6FA7631F942c0e90030ac230fa"
+    catalog_url, entry_id = split_dataset_url(url)
+    assert catalog_url == "rerun://api.latest-eu.cloud.rerun.io:443"
+    assert entry_id == "18B40C6FA7631F942c0e90030ac230fa"
+
+    # Bare trailing id (no `/entry/` segment) is also accepted.
+    assert split_dataset_url("rerun+http://localhost:9876/abc123") == ("rerun+http://localhost:9876", "abc123")
+
+    # Trailing slash is tolerated.
+    assert split_dataset_url("rerun://host:443/entry/xyz/") == ("rerun://host:443", "xyz")
+
+
+def test_split_dataset_url_invalid() -> None:
+    with pytest.raises(ValueError, match="Invalid dataset URL"):
+        split_dataset_url("not-a-url")
+    with pytest.raises(ValueError, match="Could not find an entry id"):
+        split_dataset_url("rerun://host:443")

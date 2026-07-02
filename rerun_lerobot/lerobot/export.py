@@ -13,6 +13,7 @@ from tqdm import tqdm
 
 from rerun_lerobot.lerobot.converter import convert_dataframe_to_episode
 from rerun_lerobot.lerobot.feature_inference import infer_features
+from rerun_lerobot.utils import split_dataset_url
 
 if TYPE_CHECKING:
     from rerun.catalog import DatasetEntry
@@ -215,6 +216,50 @@ def convert_catalog_dataset_to_lerobot(
 
     client = rr.catalog.CatalogClient(catalog_url, token=token)
     dataset = client.get_dataset(name=dataset_name)
+    convert_dataset_to_lerobot(
+        dataset,
+        output_dir=output_dir,
+        repo_id=repo_id,
+        config=config,
+        segments=segments,
+        max_segments=max_segments,
+    )
+
+
+def convert_dataset_url_to_lerobot(
+    *,
+    dataset_url: str,
+    output_dir: Path,
+    repo_id: str,
+    config: LeRobotConversionConfig,
+    token: str | None = None,
+    segments: list[str] | None = None,
+    max_segments: int | None = None,
+) -> None:
+    """
+    Convert a dataset addressed by a full Rerun dataset URL to a LeRobot v3 dataset.
+
+    The URL bundles the catalog server and the dataset entry id, e.g.
+    ``rerun://api.latest-eu.cloud.rerun.io:443/entry/18B40C6FA7631F942c0e90030ac230fa``.
+    It is split into a catalog server URL and an entry id, and the dataset is
+    looked up by id via :class:`rerun.catalog.CatalogClient`.
+
+    Args:
+        dataset_url: Full Rerun dataset entry URL.
+        output_dir: Output directory for the LeRobot dataset.
+        repo_id: LeRobot repo ID.
+        config: Conversion configuration.
+        token: Optional authentication token for the catalog server.
+        segments: Optional list of segment IDs to convert (defaults to all).
+        max_segments: Optional limit on the number of segments.
+
+    """
+    if output_dir.exists():
+        raise ValueError(f"Output directory already exists: {output_dir}")
+
+    catalog_url, entry_id = split_dataset_url(dataset_url)
+    client = rr.catalog.CatalogClient(catalog_url, token=token)
+    dataset = client.get_dataset(id=entry_id)
     convert_dataset_to_lerobot(
         dataset,
         output_dir=output_dir,
