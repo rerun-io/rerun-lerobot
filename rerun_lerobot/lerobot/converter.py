@@ -17,7 +17,7 @@ from tqdm import tqdm
 
 from rerun_lerobot.lerobot.video_processing import (
     can_remux_video,
-    decode_video_frame,
+    decode_video_frames_at_times,
     load_video_samples,
     remux_video_stream,
 )
@@ -389,17 +389,14 @@ def _decode_video_frames_for_batch(
         row_times_ns = normalize_times(table[index_column].to_pylist())
         for spec in videos:
             samples, times_ns = video_data_cache[spec["key"]]
-            frames = []
-            for time_ns in row_times_ns:
-                frames.append(
-                    decode_video_frame(
-                        samples=samples,
-                        times_ns=times_ns,
-                        target_time_ns=int(time_ns),
-                        video_format=spec.get("video_format", "h264"),
-                    )
-                )
-            video_frames[spec["key"]] = frames
+            # Decode the stream once and sample it at every row time (O(n)),
+            # instead of re-decoding from the start for each row (O(n²)).
+            video_frames[spec["key"]] = decode_video_frames_at_times(
+                samples=samples,
+                times_ns=times_ns,
+                target_times_ns=row_times_ns,
+                video_format=spec.get("video_format", "h264"),
+            )
     return video_frames
 
 

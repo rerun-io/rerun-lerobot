@@ -168,6 +168,81 @@ def decode_video_frame(
     return np.asarray(latest_frame.to_image())
 
 
+def decode_video_frames_at_times(
+    *,
+    samples: list[bytes],
+    times_ns: npt.NDArray[np.int64],
+    target_times_ns: npt.NDArray[np.int64],
+    video_format: str,
+) -> list[npt.NDArray[np.uint8]]:
+    """
+    Decode the whole stream once and return the frame at each target time.
+
+    For every target time we return the most recent frame at or before it
+    ("latest-at"), matching :func:`decode_video_frame`'s per-frame semantics — but
+    the stream is decoded a single time (O(n)) instead of being re-decoded from the
+    start for every target (O(n²)).
+
+    Args:
+        samples: Video packet bytes, in stream order.
+        times_ns: Timestamp (ns) of each packet, same order as ``samples``.
+        target_times_ns: Timestamps (ns) to sample a frame at.
+        video_format: Video codec format (e.g. "h264", "hevc").
+
+    Returns:
+        One decoded frame per entry in ``target_times_ns``.
+
+    Raises:
+        ValueError: If the stream decodes to no frames.
+
+    """
+    if len(samples) == 0:
+        raise ValueError("No video samples available for decoding.")
+
+    data_buffer = BytesIO(b"".join(samples))
+    container = av.open(data_buffer, format=video_format, mode="r")
+    video_stream = container.streams.video[0]
+    start_time = int(times_ns[0])
+
+    frame_times: list[int] = []
+    frames: list[npt.NDArray[np.uint8]] = []
+    for packet, time_ns in zip(container.demux(video_stream), times_ns, strict=False):
+        packet.time_base = Fraction(1, 1_000_000_000)
+        packet.pts = int(time_ns - start_time)
+        packet.dts = packet.pts
+        for frame in packet.decode():
+            if isinstance(frame, av.VideoFrame):
+                frame_times.append(int(time_ns))
+                frames.append(np.asarray(frame.to_image()))
+    container.close()
+
+    if not frames:
+        raise ValueError("Failed to decode any video frames.")
+
+    selected = _latest_at_indices(np.asarray(frame_times, dtype=np.int64), target_times_ns)
+    return [frames[i] for i in selected]
+
+
+def _latest_at_indices(
+    frame_times_ns: npt.NDArray[np.int64],
+    target_times_ns: npt.NDArray[np.int64],
+) -> list[int]:
+    """
+    For each target time, index of the most recent frame at or before it ("latest-at").
+
+    Targets before the first frame clamp to the first frame. Robust to unsorted
+    ``frame_times_ns``.
+    """
+    order = np.argsort(frame_times_ns, kind="stable")
+    sorted_times = frame_times_ns[order]
+    indices: list[int] = []
+    for target_time_ns in target_times_ns:
+        idx = int(np.searchsorted(sorted_times, int(target_time_ns), side="right") - 1)
+        idx = max(idx, 0)
+        indices.append(int(order[idx]))
+    return indices
+
+
 def can_remux_video(
     times_ns: npt.NDArray[np.int64],
     target_fps: int,

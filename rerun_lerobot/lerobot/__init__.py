@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from rerun_lerobot.lerobot.video_processing import (
         can_remux_video,
         decode_video_frame,
+        decode_video_frames_at_times,
         extract_video_samples,
         infer_video_shape,
         infer_video_shape_from_table,
@@ -46,6 +47,7 @@ _LAZY_ATTRS = {
     "convert_dataset_url_to_lerobot": "rerun_lerobot.lerobot.export",
     "convert_rrd_dataset_to_lerobot": "rerun_lerobot.lerobot.export",
     "decode_video_frame": "rerun_lerobot.lerobot.video_processing",
+    "decode_video_frames_at_times": "rerun_lerobot.lerobot.video_processing",
     "extract_video_samples": "rerun_lerobot.lerobot.video_processing",
     "infer_features": "rerun_lerobot.lerobot.feature_inference",
     "infer_video_shape": "rerun_lerobot.lerobot.video_processing",
@@ -82,6 +84,7 @@ __all__ = [
     "convert_dataset_url_to_lerobot",
     "convert_rrd_dataset_to_lerobot",
     "decode_video_frame",
+    "decode_video_frames_at_times",
     "extract_video_samples",
     "infer_features",
     "infer_video_shape",
