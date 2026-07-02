@@ -85,12 +85,14 @@ export UV_PUBLISH_TOKEN=pypi-...
 or pass `--token pypi-...`. To test the upload first, publish to TestPyPI with
 `uv publish --publish-url https://test.pypi.org/legacy/`.
 
-Verify the release installs cleanly (note the `rerun-sdk` override, explained in
-the [README](README.md)):
+Verify the release installs cleanly from PyPI into a throwaway env (note the `rerun-sdk` override,
+explained in the [README](README.md); `uv run --with` can't apply overrides, so use `uv pip install`):
 
 ```bash
-uv run --with "rerun-lerobot==0.NEW.VERSION" --with "rerun-sdk>=0.27" \
-  --no-project -- rerun-lerobot --help
+uv venv /tmp/verify-rl
+uv pip install --python /tmp/verify-rl "rerun-lerobot==0.NEW.VERSION" \
+  --override <(echo "rerun-sdk[datafusion]>=0.27")
+/tmp/verify-rl/bin/rerun-lerobot --help
 ```
 
 ## Tag the release

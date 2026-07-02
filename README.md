@@ -18,27 +18,29 @@ pip install rerun-lerobot
 
 The conversion relies on the Rerun OSS server API (`rr.server.Server`), which requires
 **`rerun-sdk >= 0.27`**. LeRobot currently pins **`rerun-sdk < 0.27`**, so a naive install will fail
-to resolve. Override LeRobot's pin at install time.
+to resolve. Override LeRobot's pin at install time (and pull the matching `datafusion` via the
+`[datafusion]` extra — a plain `rerun-sdk` upgrade resolves `datafusion` too new for the catalog
+client).
 
-With `uv`:
+With `uv`, in a project's `pyproject.toml`:
 
 ```toml
-# pyproject.toml
 [tool.uv]
-override-dependencies = ["rerun-sdk>=0.27"]
+override-dependencies = ["rerun-sdk[datafusion]>=0.27"]
 ```
 
-Or on the command line:
+Or on the command line (note: `uv run --with` does **not** apply overrides — use `uv pip install`):
 
 ```bash
-uv pip install rerun-lerobot --override <(echo "rerun-sdk>=0.27")
+uv pip install rerun-lerobot --override <(echo "rerun-sdk[datafusion]>=0.27")
 ```
 
-With `pip`, install and then force the newer `rerun-sdk`:
+With `pip`, install and then force the newer `rerun-sdk` (the resolver will warn about LeRobot's
+pin; that is expected):
 
 ```bash
 pip install rerun-lerobot
-pip install --upgrade "rerun-sdk>=0.27"
+pip install --upgrade "rerun-sdk[datafusion]>=0.27"
 ```
 
 ## Usage
@@ -286,12 +288,15 @@ source .venv/bin/activate
 rerun-lerobot --help
 ```
 
-Or, without cloning, run the latest source from GitHub in a throwaway environment (note the
-`rerun-sdk` override, see above):
+Or, without cloning, install into a throwaway virtualenv with the override applied (`uv run --with`
+can't override LeRobot's transitive `rerun-sdk` pin, so use `uv pip install --override`):
 
 ```bash
-uv run --with "git+https://github.com/rerun-io/rerun-lerobot" --with "rerun-sdk>=0.27" \
-  --no-project -- rerun-lerobot --help
+uv venv /tmp/rl-venv
+uv pip install --python /tmp/rl-venv \
+  "git+https://github.com/rerun-io/rerun-lerobot" \
+  --override <(echo "rerun-sdk[datafusion]>=0.27")
+/tmp/rl-venv/bin/rerun-lerobot --help
 ```
 
 ## Development
