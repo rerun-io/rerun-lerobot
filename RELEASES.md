@@ -5,7 +5,7 @@ version you are releasing (e.g. `0.2.0`).
 
 Do everything from a clean checkout of `main` with a working `uv` install.
 
-## A) Update to the latest Rerun and LeRobot
+## Update to the latest Rerun and LeRobot
 
 `rerun-lerobot` tracks two moving targets:
 
@@ -39,7 +39,7 @@ If a new `rerun-sdk` moves `datafusion` to a new major version, `uv run pytest`
 will fail with `RerunIncompatibleDependencyVersionError` — that means the
 `rerun-sdk[datafusion]` extra is doing its job; just re-run `uv lock --upgrade`.
 
-## B) Bump the version number
+## Bump the version number
 
 The version lives in a single place — `rerun_lerobot/__init__.py`
 (`__version__`); Hatchling reads it dynamically.
@@ -54,7 +54,7 @@ The version lives in a single place — `rerun_lerobot/__init__.py`
    git commit -am "Release 0.NEW.VERSION - <one-line summary>"
    ```
 
-## C) Publish to PyPI
+## Publish to PyPI
 
 Build and publish from the clean, committed tree:
 
@@ -81,7 +81,7 @@ uv run --with "rerun-lerobot==0.NEW.VERSION" --with "rerun-sdk>=0.27" \
   --no-project -- rerun-lerobot --help
 ```
 
-## D) Tag the release
+## Tag the release
 
 ```bash
 git tag -a 0.NEW.VERSION -m "Release 0.NEW.VERSION - <one-line summary>"
@@ -89,7 +89,7 @@ git push origin main
 git push origin 0.NEW.VERSION
 ```
 
-## E) Make a GitHub release
+## Make a GitHub release
 
 Create the release from the tag, either in the UI:
 
