@@ -115,14 +115,17 @@ def convert_dataset_to_lerobot(
     inference_reader = inference_view.reader(index=config.index_column)
     inference_table = pa.table(inference_reader.select(*inference_columns))
 
-    print("Inferring features from segment:", inference_segment_id)
+    if reference_path is None:
+        raise ValueError("No action or state column specified.")
+
+    tqdm.write(f"Inferring features from segment: {inference_segment_id}")
     start_time = time.time()
     features = infer_features(
         table=inference_table,
         config=config,
     )
     end_time = time.time()
-    print(f"Inferring features took {end_time - start_time:.2f} seconds")
+    tqdm.write(f"Inferring features took {end_time - start_time:.2f} seconds")
 
     # Create LeRobot dataset
     lerobot_dataset = LeRobotDataset.create(
@@ -133,50 +136,72 @@ def convert_dataset_to_lerobot(
         use_videos=config.use_videos,
     )
 
-    # Process each segment
-    for segment_id in tqdm(segment_ids, desc="Segments"):
-        try:
-            contents, reference_path = config.get_filter_list()
+    # Fetch segment sizes once (used to weight the progress bar and to skip empty
+    # segments). Doing it once avoids an O(num_segments) round-trip in the loop.
+    segment_sizes = _segment_sizes(dataset)
+    total_bytes = sum(segment_sizes.get(seg, 0) for seg in segment_ids)
+    use_byte_progress = total_bytes > 0
 
-            if reference_path is None:
-                print(f"Skipping segment '{segment_id}': no action or state column specified")
+    # A single dataset-wide progress bar with an ETA. Weighted by segment size in
+    # bytes when available (segments vary a lot in length), else by segment count.
+    progress = tqdm(
+        total=total_bytes if use_byte_progress else len(segment_ids),
+        unit="B" if use_byte_progress else "seg",
+        unit_scale=use_byte_progress,
+        desc="Converting",
+    )
+    converted = 0
+    skipped = 0
+    with progress:
+        for segment_id in segment_ids:
+            step = segment_sizes.get(segment_id, 0) if use_byte_progress else 1
+            try:
+                if segment_sizes.get(segment_id) == 0:
+                    tqdm.write(f"Skipping segment '{segment_id}': segment is empty (0 bytes)")
+                    skipped += 1
+                    continue
+
+                view = dataset.filter_segments(segment_id).filter_contents(contents)
+                df = view.reader(index=config.index_column)
+
+                convert_dataframe_to_episode(
+                    df,
+                    config,
+                    lerobot_dataset=lerobot_dataset,
+                    segment_id=segment_id,
+                    features=features,
+                )
+                converted += 1
+
+            except Exception as err:
+                tqdm.write(f"Error processing segment {segment_id}: {err}")
+                import traceback
+
+                traceback.print_exc()
+                skipped += 1
                 continue
-
-            # Check if segment is empty
-            segment_table = dataset.segment_table()
-            segment_info = pa.table(segment_table.df)
-            is_empty = False
-            for i in range(segment_info.num_rows):
-                if segment_info["rerun_segment_id"][i].as_py() == segment_id:
-                    size_bytes = segment_info["rerun_size_bytes"][i].as_py()
-                    if size_bytes == 0:
-                        print(f"Skipping segment '{segment_id}': segment is empty (0 bytes)")
-                        is_empty = True
-                        break
-            if is_empty:
-                continue
-
-            view = dataset.filter_segments(segment_id).filter_contents(contents)
-            df = view.reader(
-                index=config.index_column,
-            )
-
-            convert_dataframe_to_episode(
-                df,
-                config,
-                lerobot_dataset=lerobot_dataset,
-                segment_id=segment_id,
-                features=features,
-            )
-
-        except Exception as err:
-            print(f"Error processing segment {segment_id}: {err}")
-            import traceback
-
-            traceback.print_exc()
-            continue
+            finally:
+                progress.update(step)
+                progress.set_postfix(
+                    episodes=converted,
+                    frames=lerobot_dataset.meta.total_frames,
+                    skipped=skipped,
+                )
 
     lerobot_dataset.finalize()
+
+
+def _segment_sizes(dataset: DatasetEntry) -> dict[str, int]:
+    """Map each segment id to its size in bytes (empty dict if the metadata is unavailable)."""
+    try:
+        segment_info = pa.table(dataset.segment_table().df)
+    except Exception:
+        return {}
+    if "rerun_segment_id" not in segment_info.column_names or "rerun_size_bytes" not in segment_info.column_names:
+        return {}
+    ids = segment_info["rerun_segment_id"].to_pylist()
+    sizes = segment_info["rerun_size_bytes"].to_pylist()
+    return {seg_id: int(size or 0) for seg_id, size in zip(ids, sizes, strict=False)}
 
 
 def convert_rrd_dataset_to_lerobot(
