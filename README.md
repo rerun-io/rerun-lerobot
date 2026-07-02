@@ -146,6 +146,29 @@ Videos are specified as `key:path`:
 The converter expects a [`VideoStream`](https://www.rerun.io/docs/reference/types/archetypes/video_stream)
 archetype at the specified paths.
 
+### How video streams are handled when resampling
+
+`--fps` resamples the *scalar* streams (action / state / task): the output rows are the frames of the
+chosen `--index` timeline where the action column is present. Video is handled on a **separate path**
+— it is not decoded-and-re-timed per output row. There are two modes:
+
+**Default (`--video`, i.e. `use_videos=True`): remux, no re-encoding.**
+The original compressed packets from the `VideoStream` (H.264 / HEVC / …) are copied straight into an
+MP4 container with their original timestamps — same codec, same frames, no transcoding. This is fast
+and lossless. It assumes the source video already runs at (about) the target rate: the converter
+compares the source frame rate (median packet interval) against `--fps` and only remuxes if they match
+within 5%. **If they differ by more than 5%, conversion errors out** rather than silently resampling —
+there is no automatic video re-encode/re-timing yet. In practice, record (or pre-resample) the video
+stream at your target `--fps`.
+
+**`--use-images`: decode to raw image frames.**
+For each output data row, the frame is decoded at the nearest packet at-or-before that row's timestamp
+(latest-at) and stored as an inline image (`dtype: "image"`) instead of a video. This genuinely
+resamples the visuals to the output rows, at the cost of decoding every frame and dropping the
+compressed video. Use this when the source frame rate does not match `--fps`.
+
+In both modes the frame shape `(height, width, channels)` is inferred by decoding a single frame.
+
 ### Full example
 
 ```bash
