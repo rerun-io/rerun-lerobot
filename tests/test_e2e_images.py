@@ -83,7 +83,8 @@ def test_output_format_png_stores_all_as_images(image_rrd_dir: Path, tmp_path: P
         assert feats[key]["dtype"] == "image"
         assert tuple(feats[key]["shape"]) == (IMG_H, IMG_W, 3)
     assert info["total_frames"] == NUM_FRAMES
-    assert list(out.glob("images/**/*.png")), "expected PNG frames on disk"
+    # Image-dtype frames are embedded inline in the data parquet (no video files).
+    assert list(out.glob("data/**/*.parquet")), "expected data parquet"
     assert not list(out.glob("videos/**/*.mp4")), "should not have written video"
 
 

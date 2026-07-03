@@ -115,10 +115,15 @@ def convert_dataframe_to_episode(
     # General path: decode every camera's frames, let LeRobot store them (PNG for
     # image-dtype cameras, encoded video for video-dtype cameras), then overwrite
     # any remuxable video with a lossless copy of the original packets.
+    #
+    # Camera frames live on their own rows (their source timeline), which differ
+    # from the action rows, so extract from the UNFILTERED frame and sample each
+    # camera at the output row times (latest-at).
     row_times_ns = normalize_times(data_columns[config.index_column])
+    full_table = pa.table(cached_df)
     camera_frames: dict[str, list[npt.NDArray[np.uint8]]] = {
         camera.key: extract_camera_frames_at_times(
-            camera, table, index_column=config.index_column, target_times_ns=row_times_ns
+            camera, full_table, index_column=config.index_column, target_times_ns=row_times_ns
         )
         for camera in cameras
     }
