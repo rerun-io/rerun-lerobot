@@ -6,11 +6,12 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from rerun_lerobot.lerobot.video_processing import infer_video_shape_from_table
+from rerun_lerobot.lerobot.cameras import infer_camera_feature
 
 if TYPE_CHECKING:
     import pyarrow as pa
 
+    from rerun_lerobot.camera import ResolvedCamera
     from rerun_lerobot.lerobot.types import FeatureSpec, LeRobotConversionConfig
 
 
@@ -18,13 +19,15 @@ def infer_features(
     *,
     table: pa.Table,
     config: LeRobotConversionConfig,
+    cameras: list[ResolvedCamera] | None = None,
 ) -> dict[str, FeatureSpec]:
     """
     Infer feature specifications from a pre-queried PyArrow table.
 
     Args:
-        table: PyArrow table containing all necessary columns (action, state, video samples)
+        table: PyArrow table containing all necessary columns (action, state, camera samples)
         config: Conversion configuration
+        cameras: Resolved cameras to infer image/video feature specs for
 
     Returns:
         Dictionary mapping feature names to their specifications
@@ -73,26 +76,11 @@ def infer_features(
         raise ValueError("State names length does not match inferred state dimension.")
     features["observation.state"] = {"dtype": "float32", "shape": (state_dim,), "names": config.state_names}
 
-    # Infer video shapes
-    for spec in config.videos:
-        sample_column = f"{spec['path']}:VideoStream:sample"
-        video_format = spec.get("video_format", "h264")
-
+    # Infer camera feature specs (video / encoded-image / raw-image sources).
+    for camera in cameras or []:
         try:
-            shape = infer_video_shape_from_table(
-                table=table,
-                sample_column=sample_column,
-                index_column=config.index_column,
-                video_format=video_format,
-            )
-        except ValueError as e:
-            raise ValueError(f"Could not infer video shape for '{spec['path']}' (column '{sample_column}'): {e}") from e
-
-        feature_key = f"observation.images.{spec['key']}"
-        features[feature_key] = {
-            "dtype": "video" if config.use_videos else "image",
-            "shape": shape,
-            "names": ["height", "width", "channels"],
-        }
+            features[camera.feature_key] = infer_camera_feature(camera, table, config.index_column)
+        except ValueError as err:
+            raise ValueError(f"Could not infer shape for camera '{camera.key}' at '{camera.path}': {err}") from err
 
     return features

@@ -53,6 +53,7 @@ class CameraSource:
 
     @property
     def is_video(self) -> bool:
+        """True if the source is a VideoStream."""
         return self.kind == _KIND_VIDEO
 
     @property
@@ -127,6 +128,46 @@ def output_is_image(output_format: str) -> bool:
     return output_format in OUTPUT_IMAGE_FORMATS
 
 
+@dataclass(frozen=True)
+class ResolvedCamera:
+    """A camera with its detected source and the chosen LeRobot output format."""
+
+    key: str
+    path: str
+    kind: str  # _KIND_VIDEO | _KIND_ENCODED_IMAGE | _KIND_RAW_IMAGE
+    source_codec: str | None  # video: h264/hevc/av1; encoded_image: jpeg/png; raw_image: None
+    output_format: str  # png | h264 | hevc | av1
+
+    @property
+    def feature_key(self) -> str:
+        """The LeRobot feature key for this camera (e.g. 'observation.images.front')."""
+        return f"observation.images.{self.key}"
+
+    @property
+    def outputs_image(self) -> bool:
+        """True if the output is stored as PNG image frames (not video)."""
+        return output_is_image(self.output_format)
+
+    @property
+    def feature_dtype(self) -> str:
+        """The LeRobot feature dtype: 'image' or 'video'."""
+        return "image" if self.outputs_image else "video"
+
+    @property
+    def can_remux(self) -> bool:
+        """True when the source is video already in the requested output codec (copy, no re-encode)."""
+        return self.kind == _KIND_VIDEO and not self.outputs_image and self.source_codec == self.output_format
+
+    @property
+    def sample_column(self) -> str:
+        """The primary frame-data column for this camera's source archetype."""
+        if self.kind == _KIND_VIDEO:
+            return f"{self.path}:VideoStream:sample"
+        if self.kind == _KIND_ENCODED_IMAGE:
+            return f"{self.path}:EncodedImage:blob"
+        return f"{self.path}:Image:buffer"
+
+
 def image_codec_from_blob(blob: bytes) -> str:
     """Sniff the codec of an EncodedImage blob: 'jpeg', 'png', or the lowercased PIL format."""
     fmt = PILImage.open(io.BytesIO(blob)).format
@@ -147,7 +188,9 @@ _COLOR_MODEL_CHANNELS = {"L": 1, "RGB": 3, "RGBA": 4, "BGR": 3, "BGRA": 4}
 _BGR_MODELS = {"BGR", "BGRA"}
 
 
-def decode_raw_image(buffer: bytes, *, width: int, height: int, color_model: str, channels: int) -> npt.NDArray[np.uint8]:
+def decode_raw_image(
+    buffer: bytes, *, width: int, height: int, color_model: str, channels: int
+) -> npt.NDArray[np.uint8]:
     """
     Decode a raw ``Image`` buffer (8-bit) to an (H, W, 3) uint8 RGB array.
 
@@ -170,10 +213,11 @@ def decode_raw_image(buffer: bytes, *, width: int, height: int, color_model: str
         )
     array = np.frombuffer(buffer, dtype=np.uint8).reshape(height, width, channels)
 
-    if color_model in _BGR_MODELS:
-        array = array[:, :, ::-1][:, :, :3] if channels >= 3 else array
-        array = np.ascontiguousarray(array[:, :, :3])
-        return array.astype(np.uint8)
+    rgb: npt.NDArray[np.uint8]
     if channels == 1:
-        return np.ascontiguousarray(np.repeat(array, 3, axis=2)).astype(np.uint8)
-    return np.ascontiguousarray(array[:, :, :3]).astype(np.uint8)
+        rgb = np.repeat(array, 3, axis=2)
+    elif color_model in _BGR_MODELS:
+        rgb = array[:, :, 2::-1]  # BGR(A) -> RGB (first three channels, reversed)
+    else:
+        rgb = array[:, :, :3]
+    return np.ascontiguousarray(rgb, dtype=np.uint8)

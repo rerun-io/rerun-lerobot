@@ -11,7 +11,9 @@ import rerun as rr
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 from tqdm import tqdm
 
+from rerun_lerobot.camera import LEROBOT_VCODEC, detect_camera_kind
 from rerun_lerobot.inspection import DatasetInspection, classify_schema
+from rerun_lerobot.lerobot.cameras import resolve_cameras
 from rerun_lerobot.lerobot.converter import convert_dataframe_to_episode
 from rerun_lerobot.lerobot.feature_inference import infer_features
 from rerun_lerobot.utils import split_dataset_url
@@ -20,6 +22,13 @@ if TYPE_CHECKING:
     from rerun.catalog import DatasetEntry
 
     from rerun_lerobot.lerobot.types import LeRobotConversionConfig
+
+
+def _dataset_vcodec(output_format: str | None) -> str:
+    """LeRobot dataset vcodec: the requested video codec, or h264 for re-encodes by default."""
+    if output_format in LEROBOT_VCODEC:
+        return LEROBOT_VCODEC[output_format]
+    return "h264"
 
 
 def _num_segments(dataset: DatasetEntry) -> int | None:
@@ -102,38 +111,61 @@ def convert_dataset_to_lerobot(
     # Query a representative segment for feature inference
     inference_segment_id = segment_ids[0]
     contents, reference_path = config.get_filter_list()
+    if reference_path is None:
+        raise ValueError("No action or state column specified.")
 
-    # Build list of all columns needed for feature inference
+    schema_names = list(dataset.arrow_schema().names)
+
+    # Detect each camera's source archetype (from the schema) so we know which
+    # columns to query for inference.
+    camera_columns: list[str] = []
+    for spec in config.videos:
+        kind = detect_camera_kind(schema_names, spec["path"])
+        if kind == "video":
+            camera_columns.append(f"{spec['path']}:VideoStream:sample")
+        elif kind == "encoded_image":
+            camera_columns.append(f"{spec['path']}:EncodedImage:blob")
+        else:  # raw_image
+            camera_columns.append(f"{spec['path']}:Image:buffer")
+            camera_columns.append(f"{spec['path']}:Image:format")
+
     inference_columns = [config.index_column, config.action, config.state]
     if config.task:
         inference_columns.append(config.task)
-    for spec in config.videos:
-        inference_columns.append(f"{spec['path']}:VideoStream:sample")
+    inference_columns.extend(camera_columns)
 
     # Query all columns from one segment
     inference_view = dataset.filter_segments(inference_segment_id).filter_contents(contents)
     inference_reader = inference_view.reader(index=config.index_column)
     inference_table = pa.table(inference_reader.select(*inference_columns))
 
-    if reference_path is None:
-        raise ValueError("No action or state column specified.")
+    # Resolve each camera's source codec and output format.
+    cameras = resolve_cameras(
+        videos=config.videos,
+        schema_names=schema_names,
+        inference_table=inference_table,
+        requested_format=config.output_format,
+    )
+    for camera in cameras:
+        tqdm.write(f"Camera '{camera.key}': {camera.kind} ({camera.source_codec}) -> {camera.output_format}")
 
     tqdm.write(f"Inferring features from segment: {inference_segment_id}")
     start_time = time.time()
-    features = infer_features(
-        table=inference_table,
-        config=config,
-    )
+    features = infer_features(table=inference_table, config=config, cameras=cameras)
     end_time = time.time()
     tqdm.write(f"Inferring features took {end_time - start_time:.2f} seconds")
 
-    # Create LeRobot dataset
+    # Create LeRobot dataset. use_videos if any camera outputs video; the dataset
+    # vcodec is used by LeRobot when it (re-)encodes video (remuxed cameras bypass it).
+    use_videos = any(not camera.outputs_image for camera in cameras)
+    vcodec = _dataset_vcodec(config.output_format)
     lerobot_dataset = LeRobotDataset.create(
         repo_id=repo_id,
         fps=config.fps,
         features=features,
         root=output_dir,
-        use_videos=config.use_videos,
+        use_videos=use_videos,
+        **({"vcodec": vcodec} if use_videos else {}),
     )
 
     # Fetch segment sizes once (used to weight the progress bar and to skip empty
@@ -170,6 +202,7 @@ def convert_dataset_to_lerobot(
                     lerobot_dataset=lerobot_dataset,
                     segment_id=segment_id,
                     features=features,
+                    cameras=cameras,
                 )
                 converted += 1
 
