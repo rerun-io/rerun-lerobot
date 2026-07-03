@@ -1,9 +1,9 @@
 <p align="center">
-  <img height="200" align="middle" alt="Rerun" src="https://github.com/user-attachments/assets/dd9b24b5-d188-446e-8355-9894fd9eb791" />
+  <img height="200" align="middle" alt="Rerun" src="https://github.com/user-attachments/assets/94eb5deb-eaae-4240-9d30-c9fb4145914f" />
   &nbsp;&nbsp;&nbsp;&nbsp;
   <img height="96" align="middle" alt="❤️" src="https://github.githubassets.com/images/icons/emoji/unicode/2764.png" />
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <img height="200" align="middle" alt="LeRobot" src="https://github.com/user-attachments/assets/3baf7113-ff04-48e9-82de-fc1786cc744a" />
+  <img height="200" align="middle" alt="LeRobot" src="https://github.com/user-attachments/assets/779b9526-db38-47bd-a67a-175f051f8a1d" />
 </p>
 
 # rerun-lerobot
