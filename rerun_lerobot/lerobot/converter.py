@@ -15,9 +15,9 @@ from lerobot.datasets.compute_stats import compute_episode_stats
 from lerobot.datasets.utils import update_chunk_file_indices
 from tqdm import tqdm
 
+from rerun_lerobot.lerobot.cameras import extract_camera_frames_at_times
 from rerun_lerobot.lerobot.video_processing import (
     can_remux_video,
-    decode_video_frames_at_times,
     load_video_samples,
     remux_video_stream,
 )
@@ -26,12 +26,12 @@ from rerun_lerobot.utils import normalize_times, suppress_ffmpeg_output, to_floa
 if TYPE_CHECKING:
     from lerobot.datasets.lerobot_dataset import LeRobotDataset
 
+    from rerun_lerobot.camera import ResolvedCamera
     from rerun_lerobot.lerobot.types import (
         FeatureSpec,
         LeRobotConversionConfig,
         RemuxData,
         RemuxInfo,
-        VideoSampleData,
         VideoSpec,
     )
 
@@ -43,7 +43,8 @@ def convert_dataframe_to_episode(
     lerobot_dataset: LeRobotDataset,
     segment_id: str,
     features: dict[str, FeatureSpec],
-) -> tuple[bool, RemuxData | None, bool]:
+    cameras: list[ResolvedCamera],
+) -> None:
     """
     Convert a DataFusion dataframe to a LeRobot episode.
 
@@ -53,12 +54,7 @@ def convert_dataframe_to_episode(
         lerobot_dataset: LeRobot dataset to add frames to
         segment_id: ID of the segment being processed (for logging)
         features: Feature specifications from inference
-
-    Returns:
-        Tuple of (success, remux_data, direct_saved) where:
-        - success: True if segment was processed successfully, False if skipped
-        - remux_data: Dict with remuxing info if possible, None otherwise
-        - direct_saved: True if the episode was saved without decoding video frames
+        cameras: Resolved cameras (source + output format) to include
 
     """
     action_spec = features.get("action")
@@ -74,36 +70,36 @@ def convert_dataframe_to_episode(
         raise ValueError("State feature specification is missing.")
 
     cached_df = df.cache()
-    video_data_cache = load_video_samples(
-        df=cached_df,
-        index_column=config.index_column,
-        videos=config.videos,
-    )
+
+    # For video cameras whose source codec already matches the requested output,
+    # load the raw packets so we can remux (copy) them instead of re-encoding.
+    remux_infos: dict[str, RemuxInfo] = {}
+    remux_video_format: dict[str, str] = {}
+    remux_candidates = [camera for camera in cameras if camera.can_remux]
+    if remux_candidates:
+        packet_cache = load_video_samples(
+            df=cached_df,
+            index_column=config.index_column,
+            videos=[{"key": camera.key, "path": camera.path} for camera in remux_candidates],
+        )
+        for camera in remux_candidates:
+            samples, times_ns = packet_cache[camera.key]
+            ok, source_fps = can_remux_video(times_ns, config.fps)
+            if ok:
+                remux_infos[camera.key] = {"samples": samples, "times_ns": times_ns, "source_fps": source_fps}
+                remux_video_format[camera.key] = camera.source_codec or "h264"
+
     df = cached_df.filter(dfn.col(config.action).is_not_null())
     table = pa.table(df)
     if table.num_rows == 0:
-        return False, None, False
-
-    # Check if video remuxing is possible (when use_videos=True and FPS matches)
-    remux_data: RemuxData | None = None
-    if config.use_videos and config.videos:
-        remux_info: dict[str, RemuxInfo] = {}
-        for spec in config.videos:
-            samples, times_ns = video_data_cache[spec["key"]]
-            can_remux, source_fps = can_remux_video(times_ns, config.fps)
-            if can_remux:
-                remux_info[spec["key"]] = {"samples": samples, "times_ns": times_ns, "source_fps": source_fps}
-            else:
-                raise ValueError(
-                    f"Video cannot be remuxed yet: spec={spec['key']} source_fps={source_fps:.2f} target_fps={config.fps}"
-                )
-
-        remux_data = {"specs": config.videos, "remux_info": remux_info, "fps": config.fps}
+        return
 
     data_columns = {name: table[name].to_pylist() for name in table.column_names}
     num_rows = table.num_rows
 
-    if config.use_videos and remux_data:
+    # Fast path: every camera is a video we can remux (no decoding at all).
+    all_remuxable = bool(cameras) and all(camera.key in remux_infos for camera in cameras)
+    if all_remuxable:
         _save_episode_without_video_decode(
             lerobot_dataset=lerobot_dataset,
             data_columns=data_columns,
@@ -111,17 +107,26 @@ def convert_dataframe_to_episode(
             config=config,
             action_dim=action_dim,
             state_dim=state_dim,
-            remux_data=remux_data,
+            remux_infos=remux_infos,
+            remux_video_format=remux_video_format,
         )
-        return True, None, True
+        return
 
-    # Decode video frames for the entire segment if needed
-    video_frames = _decode_video_frames_for_batch(
-        table,
-        index_column=config.index_column,
-        videos=config.videos,
-        video_data_cache=video_data_cache,
-    )
+    # General path: decode every camera's frames, let LeRobot store them (PNG for
+    # image-dtype cameras, encoded video for video-dtype cameras), then overwrite
+    # any remuxable video with a lossless copy of the original packets.
+    #
+    # Camera frames live on their own rows (their source timeline), which differ
+    # from the action rows, so extract from the UNFILTERED frame and sample each
+    # camera at the output row times (latest-at).
+    row_times_ns = normalize_times(data_columns[config.index_column])
+    full_table = pa.table(cached_df)
+    camera_frames: dict[str, list[npt.NDArray[np.uint8]]] = {
+        camera.key: extract_camera_frames_at_times(
+            camera, full_table, index_column=config.index_column, target_times_ns=row_times_ns
+        )
+        for camera in cameras
+    }
 
     for row_idx in tqdm(range(num_rows), desc=f"Frames ({segment_id})", leave=False):
         frame = _build_frame(
@@ -130,14 +135,26 @@ def convert_dataframe_to_episode(
             config=config,
             action_dim=action_dim,
             state_dim=state_dim,
-            video_frames=video_frames,
+            cameras=cameras,
+            camera_frames=camera_frames,
             num_rows=num_rows,
         )
         lerobot_dataset.add_frame(frame)
 
     lerobot_dataset.save_episode()
 
-    return True, remux_data, False
+    if remux_infos:
+        episode_index = lerobot_dataset.meta.total_episodes - 1
+        remux_specs: list[VideoSpec] = [
+            {"key": camera.key, "path": camera.path, "video_format": remux_video_format[camera.key]}
+            for camera in cameras
+            if camera.key in remux_infos
+        ]
+        apply_remuxed_videos(
+            lerobot_dataset,
+            episode_index,
+            {"specs": remux_specs, "remux_info": remux_infos, "fps": config.fps},
+        )
 
 
 def _get_video_path_for_episode(
@@ -261,7 +278,8 @@ def _save_episode_without_video_decode(
     config: LeRobotConversionConfig,
     action_dim: int,
     state_dim: int,
-    remux_data: RemuxData,
+    remux_infos: dict[str, RemuxInfo],
+    remux_video_format: dict[str, str],
 ) -> None:
     """Save an episode without decoding video frames by remuxing source packets directly."""
     if lerobot_dataset.episode_buffer is None:
@@ -319,15 +337,9 @@ def _save_episode_without_video_decode(
     episode_metadata = lerobot_dataset._save_episode_data(episode_buffer)
 
     video_metadata: dict[str, object] = {}
-    specs = remux_data["specs"]
-    remux_info = remux_data["remux_info"]
 
-    for spec in specs:
-        info = remux_info.get(spec["key"])
-        if info is None:
-            continue
-
-        video_key = f"observation.images.{spec['key']}"
+    for key, info in remux_infos.items():
+        video_key = f"observation.images.{key}"
         temp_dir = Path(tempfile.mkdtemp(dir=lerobot_dataset.root))
         temp_path = temp_dir / f"{video_key.replace('.', '_')}_{episode_index:03d}.mp4"
 
@@ -339,7 +351,7 @@ def _save_episode_without_video_decode(
                 samples=info["samples"],
                 times_ns=video_times_ns_relative,
                 output_path=str(temp_path),
-                video_format=spec.get("video_format", "h264"),
+                video_format=remux_video_format[key],
             )
 
             video_metadata.update(
@@ -363,72 +375,6 @@ def _save_episode_without_video_decode(
     lerobot_dataset.episode_buffer = lerobot_dataset.create_episode_buffer(episode_index + 1)
 
 
-def _decode_video_frames_for_batch(
-    table: pa.Table,
-    *,
-    index_column: str,
-    videos: list[VideoSpec],
-    video_data_cache: dict[str, VideoSampleData],
-) -> dict[str, list[npt.NDArray[np.uint8]]]:
-    """
-    Decode video frames for a batch of rows.
-
-    Args:
-        table: PyArrow table containing the batch
-        index_column: Timeline column name
-        videos: Video stream specifications
-        video_data_cache: Cached video data per spec key
-    Returns:
-        Dictionary mapping spec key to list of decoded frames
-
-    """
-    from rerun_lerobot.utils import normalize_times
-
-    video_frames: dict[str, list[npt.NDArray[np.uint8]]] = {}
-    if video_data_cache:
-        row_times_ns = normalize_times(table[index_column].to_pylist())
-        for spec in videos:
-            samples, times_ns = video_data_cache[spec["key"]]
-            # Decode the stream once and sample it at every row time (O(n)),
-            # instead of re-decoding from the start for each row (O(n²)).
-            video_frames[spec["key"]] = decode_video_frames_at_times(
-                samples=samples,
-                times_ns=times_ns,
-                target_times_ns=row_times_ns,
-                video_format=spec.get("video_format", "h264"),
-            )
-    return video_frames
-
-
-def _build_video_data_cache_from_table(
-    table: pa.Table,
-    *,
-    index_column: str,
-    videos: list[VideoSpec],
-) -> dict[str, VideoSampleData]:
-    """
-    Build a video data cache from columns already present in a table.
-
-    This fallback uses the table's aligned samples, which are unsuitable for remuxing.
-    """
-    from rerun_lerobot.lerobot.video_processing import extract_video_samples
-
-    video_data_cache: dict[str, VideoSampleData] = {}
-    for spec in videos:
-        sample_column = f"{spec['path']}:VideoStream:sample"
-        if sample_column not in table.column_names:
-            raise ValueError(
-                f"Sample column '{sample_column}' not found in table. Available columns: {table.column_names}"
-            )
-        samples, times_ns = extract_video_samples(
-            table,
-            sample_column=sample_column,
-            time_column=index_column,
-        )
-        video_data_cache[spec["key"]] = (samples, times_ns)
-    return video_data_cache
-
-
 def _build_frame(
     *,
     row_idx: int,
@@ -436,26 +382,25 @@ def _build_frame(
     config: LeRobotConversionConfig,
     action_dim: int,
     state_dim: int,
-    video_frames: dict[str, list[npt.NDArray[np.uint8]]],
+    cameras: list[ResolvedCamera],
+    camera_frames: dict[str, list[npt.NDArray[np.uint8]]],
     num_rows: int,
 ) -> dict[str, object]:
     """
-    Build a single frame dictionary for LeRobot dataset.
+    Build a single frame dictionary for the LeRobot dataset.
 
     Args:
         row_idx: Row index in the batch
         data_columns: Dictionary of column data
         config: Conversion configuration
-        task_column: Fully qualified task column (or None)
-        action_dim: Action dimension (if present)
-        state_dim: State dimension (if present)
-        task_default: Default task value
-        image_specs: Image stream specifications
-        video_frames: Decoded video frames per spec
+        action_dim: Action dimension
+        state_dim: State dimension
+        cameras: Resolved cameras
+        camera_frames: Decoded frames per camera key
         num_rows: Total number of rows in batch
 
     Returns:
-        Frame dictionary ready for LeRobot dataset
+        Frame dictionary ready for the LeRobot dataset
 
     """
     frame: dict[str, object] = {}
@@ -484,9 +429,8 @@ def _build_frame(
         task = str(task_value)
     frame["task"] = task
 
-    # Add video frames
-    for spec in config.videos:
-        image = video_frames[spec["key"]][row_idx]
-        frame[f"observation.images.{spec['key']}"] = image
+    # Add camera frames (LeRobot stores each as PNG or video per its feature dtype)
+    for camera in cameras:
+        frame[camera.feature_key] = camera_frames[camera.key][row_idx]
 
     return frame

@@ -94,7 +94,13 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--segments", nargs="*", default=None, help="Optional list of segment ids to convert.")
     parser.add_argument("--max-segments", type=int, default=None, help="Limit number of segments.")
-    parser.add_argument("--use-images", action="store_true", help="Store images inline instead of videos.")
+    parser.add_argument(
+        "--output-format",
+        default=None,
+        choices=["png", "h264", "hevc", "av1"],
+        help="Camera output format. 'png' stores image frames; 'h264'/'hevc'/'av1' store video. "
+        "Default: keep each camera's source format if LeRobot can store it, else h264.",
+    )
     parser.add_argument("--action-names", default=None, help="Comma-separated action names.")
     parser.add_argument("--state-names", default=None, help="Comma-separated state names.")
     return parser.parse_args()
@@ -153,7 +159,7 @@ def main() -> None:
         state=args.state,
         task=args.task,
         videos=video_specs,
-        use_videos=not args.use_images,
+        output_format=args.output_format,
         action_names=_parse_name_list(args.action_names),
         state_names=_parse_name_list(args.state_names),
     )

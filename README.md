@@ -8,7 +8,7 @@
 
 # rerun-lerobot
 
-`rerun-lerobot` is an offical [Rerun](https://rerun.io) package for converting Rerun RRD recordings into [LeRobot](https://github.com/huggingface/lerobot) v3 datasets.
+`rerun-lerobot` is an official [Rerun](https://rerun.io) package for converting Rerun RRD recordings into [LeRobot](https://github.com/huggingface/lerobot) v3 datasets.
 
 `rerun-lerobot` uses the Rerun catalog API to query and transform recordings into the LeRobot v3
 format used for imitation-learning training pipelines in PyTorch. The source can be a local
@@ -17,7 +17,7 @@ types from the recordings, resamples all time series to a target frame rate, and
 dataset. Video streams are efficiently remuxed without re-encoding.
 
 ## Alternatives
-You can also train directly from the free Rerun OSS Server and on the commerical Rerun Hub.
+You can also train directly from the free Rerun OSS Server and on the commercial Rerun Hub.
 This will generally be a lot simpler and faster than first converting to LeRobot.
 See [these docs](https://rerun.io/docs/concepts/train) for how.
 
@@ -160,28 +160,46 @@ Videos are specified as `key:path`:
 The converter expects a [`VideoStream`](https://www.rerun.io/docs/reference/types/archetypes/video_stream)
 archetype at the specified paths.
 
-### How video streams are handled when resampling
+### Camera sources and `--output-format`
 
-`--fps` resamples the *scalar* streams (action / state / task): the output rows are the frames of the
-chosen `--index` timeline where the action column is present. Video is handled on a **separate path**
-— it is not decoded-and-re-timed per output row. There are two modes:
+Cameras (`--video key:path`) can be stored in the recording as any of:
 
-**Default (`--video`, i.e. `use_videos=True`): remux, no re-encoding.**
-The original compressed packets from the `VideoStream` (H.264 / HEVC / …) are copied straight into an
-MP4 container with their original timestamps — same codec, same frames, no transcoding. This is fast
-and lossless. It assumes the source video already runs at (about) the target rate: the converter
-compares the source frame rate (median packet interval) against `--fps` and only remuxes if they match
-within 5%. **If they differ by more than 5%, conversion errors out** rather than silently resampling —
-there is no automatic video re-encode/re-timing yet. In practice, record (or pre-resample) the video
-stream at your target `--fps`.
+- `VideoStream` — compressed video packets (H.264 / HEVC / AV1)
+- `EncodedImage` — per-frame JPEG or PNG
+- `Image` — raw pixel buffers
 
-**`--use-images`: decode to raw image frames.**
-For each output data row, the frame is decoded at the nearest packet at-or-before that row's timestamp
-(latest-at) and stored as an inline image (`dtype: "image"`) instead of a video. This genuinely
-resamples the visuals to the output rows, at the cost of decoding every frame and dropping the
-compressed video. Use this when the source frame rate does not match `--fps`.
+The archetype is detected automatically. Unsupported archetypes/codecs abort the conversion with a
+message telling you what was found.
 
-In both modes the frame shape `(height, width, channels)` is inferred by decoding a single frame.
+LeRobot can only store two things: **PNG image frames** (`dtype: "image"`) or an **MP4 video**
+(`dtype: "video"`, codec H.264 / HEVC / AV1). Choose with `--output-format`:
+
+| `--output-format` | Result |
+|-------------------|--------|
+| *(omitted)*       | Keep the source format if LeRobot can store it, else H.264 (see below) |
+| `png`             | PNG image frames |
+| `h264` / `hevc` / `av1` | MP4 video in that codec |
+
+`jpg` is rejected — LeRobot has no per-frame JPEG storage; use `png` or a video codec.
+
+**Default (keep-original), per camera:**
+
+| Source | Default output |
+|--------|----------------|
+| video H.264 / HEVC / AV1 | same codec, **remuxed** (copied, no re-encode) |
+| `EncodedImage` PNG       | `png` |
+| `EncodedImage` JPEG      | `h264` (re-encoded — jpeg isn't storable) |
+| raw `Image`              | `h264` |
+
+**Remux vs re-encode.** When a video camera's source codec already equals the output codec, packets
+are copied straight into MP4 — fast and lossless — provided the source frame rate is within 5% of
+`--fps`. Otherwise (codec change, image sources, or fps mismatch) frames are decoded and re-encoded
+(video) or written as PNG (image).
+
+**Resampling.** `--fps` resamples the *scalar* streams (action / state / task) — output rows are the
+`--index` timeline frames where the action column is present. Each camera frame is sampled at the
+nearest source frame at-or-before that row's timestamp (latest-at). The frame shape
+`(height, width, 3)` is inferred by decoding one frame; all frames are converted to RGB.
 
 ### Full example
 
@@ -203,7 +221,8 @@ rerun-lerobot \
 The output directory contains:
 
 - `data/`: Parquet files with aligned time series data
-- `videos/`: encoded video files (unless `--use-images` is passed)
+- `videos/`: encoded video files (for video-output cameras)
+- `images/`: PNG frames (for `png`-output cameras)
 - `meta/`: dataset metadata and episode information
 
 ## Python API

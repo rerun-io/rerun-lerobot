@@ -58,9 +58,12 @@ class LeRobotConversionConfig:
     state: str
     task: str | None
 
-    # Image/video specifications
+    # Camera specifications (video streams and/or image streams).
     videos: list[VideoSpec]
-    use_videos: bool = True
+
+    # Requested output format for all cameras: one of "png", "h264", "hevc", "av1".
+    # None means "keep each camera's source format if LeRobot can store it, else h264".
+    output_format: str | None = None
 
     # Feature names
     action_names: list[str] | None = None
