@@ -138,16 +138,18 @@ def _infer_hw(camera: ResolvedCamera, table: pa.Table, index_column: str) -> tup
 
     # raw_image: read width/height from the Image:format struct.
     fmt_col = f"{camera.path}:Image:format"
-    fmt = _first_non_null(table[fmt_col]) if fmt_col in table.column_names else None
+    fmt = unwrap_singleton(_first_non_null(table[fmt_col])) if fmt_col in table.column_names else None
     if not isinstance(fmt, dict):
         raise ValueError(f"Missing Image:format for raw camera '{camera.key}' at '{camera.path}'.")
     return int(fmt["height"]), int(fmt["width"])
 
 
 def _decode_raw_row(buffer_value: object, fmt_value: object) -> npt.NDArray[np.uint8]:
-    fmt = fmt_value if isinstance(fmt_value, dict) else {}
-    width = int(fmt["width"])
-    height = int(fmt["height"])
+    fmt_unwrapped = unwrap_singleton(fmt_value)
+    if not isinstance(fmt_unwrapped, dict):
+        raise ValueError("Missing per-frame Image:format for a raw image row.")
+    width = int(fmt_unwrapped["width"])
+    height = int(fmt_unwrapped["height"])
     data = _blob_to_bytes(buffer_value)
     channels = len(data) // (width * height) if width and height else 0
     color_model = {1: "L", 3: "RGB", 4: "RGBA"}.get(channels)

@@ -8,7 +8,7 @@
 
 # rerun-lerobot
 
-`rerun-lerobot` is an offical [Rerun](https://rerun.io) package for converting Rerun RRD recordings into [LeRobot](https://github.com/huggingface/lerobot) v3 datasets.
+`rerun-lerobot` is an official [Rerun](https://rerun.io) package for converting Rerun RRD recordings into [LeRobot](https://github.com/huggingface/lerobot) v3 datasets.
 
 `rerun-lerobot` uses the Rerun catalog API to query and transform recordings into the LeRobot v3
 format used for imitation-learning training pipelines in PyTorch. The source can be a local
@@ -17,7 +17,7 @@ types from the recordings, resamples all time series to a target frame rate, and
 dataset. Video streams are efficiently remuxed without re-encoding.
 
 ## Alternatives
-You can also train directly from the free Rerun OSS Server and on the commerical Rerun Hub.
+You can also train directly from the free Rerun OSS Server and on the commercial Rerun Hub.
 This will generally be a lot simpler and faster than first converting to LeRobot.
 See [these docs](https://rerun.io/docs/concepts/train) for how.
 
