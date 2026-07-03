@@ -5,7 +5,7 @@ from __future__ import annotations
 from rerun_lerobot import lerobot
 from rerun_lerobot.lerobot.types import LeRobotConversionConfig, VideoSpec
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "LeRobotConversionConfig",
