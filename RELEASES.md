@@ -68,25 +68,32 @@ The version lives in a single place — `rerun_lerobot/__init__.py`
 
 ## Publish to PyPI
 
-Build and publish from the clean, committed tree:
+Publishing is automated. The `Release` workflow (`.github/workflows/release.yml`)
+runs when a version tag is pushed, builds the package with `uv build`, and
+uploads it to PyPI via **Trusted Publishing (OpenID Connect)** — no API token is
+stored anywhere. GitHub mints a short-lived OIDC token that PyPI verifies against
+the trusted publisher configured for this project.
+
+One-time setup (already done; only needed if the repo or project is recreated):
+
+- **PyPI** — on the project's *Publishing* page add a trusted publisher:
+  owner `rerun-io`, repo `rerun-lerobot`, workflow `release.yml`, environment
+  `release`.
+- **GitHub** — create an environment named `release`
+  (Settings → Environments). Optionally restrict it to release tags and require
+  reviewers, so only vetted tags publish.
+
+To release, just tag and push (see below). Watch the run:
 
 ```bash
-rm -rf dist
-uv build                 # produces dist/*.whl and dist/*.tar.gz
-uv publish               # uploads to PyPI
+gh run watch "$(gh run list --workflow release.yml --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
 ```
 
-`uv publish` needs a PyPI token. Either export it first:
+The workflow refuses to publish if the tag does not match `__version__`.
 
-```bash
-export UV_PUBLISH_TOKEN=pypi-...
-```
-
-or pass `--token pypi-...`. To test the upload first, publish to TestPyPI with
-`uv publish --publish-url https://test.pypi.org/legacy/`.
-
-Verify the release installs cleanly from PyPI into a throwaway env (note the `rerun-sdk` override,
-explained in the [README](README.md); `uv run --with` can't apply overrides, so use `uv pip install`):
+Once published, verify the release installs cleanly from PyPI into a throwaway
+env (note the `rerun-sdk` override, explained in the [README](README.md);
+`uv run --with` can't apply overrides, so use `uv pip install`):
 
 ```bash
 uv venv /tmp/verify-rl
@@ -97,9 +104,11 @@ uv pip install --python /tmp/verify-rl "rerun-lerobot==0.NEW.VERSION" \
 
 ## Tag the release
 
+Pushing the tag triggers the `Release` workflow, which publishes to PyPI:
+
 ```bash
-git tag -a 0.NEW.VERSION -m "Release 0.NEW.VERSION - <one-line summary>"
 git push origin main
+git tag -a 0.NEW.VERSION -m "Release 0.NEW.VERSION - <one-line summary>"
 git push origin 0.NEW.VERSION
 ```
 
@@ -115,11 +124,10 @@ or with the `gh` CLI:
 gh release create 0.NEW.VERSION \
   --repo rerun-io/rerun-lerobot \
   --title "0.NEW.VERSION" \
-  --generate-notes \
-  dist/*.whl dist/*.tar.gz
+  --generate-notes
 ```
 
 `--generate-notes` fills the changelog from merged PRs; edit it to add a short
 summary and call out the Rerun / LeRobot versions this release was built against.
-Attaching the built wheel and sdist is optional (PyPI is the source of truth) but
-convenient.
+The build artifacts live on PyPI (the source of truth), so nothing needs to be
+attached here.
