@@ -34,7 +34,7 @@ dependencies = [
   # rr.server.Server (used to query RRD files) requires rerun-sdk >= 0.27.
   # The `datafusion` extra pins a datafusion version compatible with rerun's
   # catalog client (a plain `datafusion` dep resolves too new).
-  "rerun-sdk[datafusion]>=0.27",
+  "rerun-sdk[datafusion]>=0.34",
   "scipy",
   "tqdm",
 ]
