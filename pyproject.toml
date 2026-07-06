@@ -22,7 +22,11 @@ dependencies = [
   # torchcodec, ...), which is what we build on. LeRobot 0.6+ only pins
   # rerun-sdk under its `viz` extra (which we don't install), so there is no
   # longer a rerun-sdk version conflict to work around.
-  "lerobot[dataset]>=0.6.0",
+  #
+  # Upper bound: the remux fast path in converter.py reaches into LeRobot's
+  # private DatasetWriter internals, so pin below the next major to avoid
+  # silently breaking on an API refactor. Re-verify before widening.
+  "lerobot[dataset]>=0.6.0,<0.7",
   "numpy",
   "pandas",
   "pillow",

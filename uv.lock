@@ -1734,7 +1734,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "av" },
-    { name = "lerobot", extras = ["dataset"], specifier = ">=0.6.0" },
+    { name = "lerobot", extras = ["dataset"], specifier = ">=0.6.0,<0.7" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "pillow" },
