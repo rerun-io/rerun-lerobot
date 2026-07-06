@@ -12,15 +12,16 @@ Do everything from a clean checkout of `main` with a working `uv` install.
 - **`rerun-sdk`** — the OSS server API (`rr.server.Server`) needs `>= 0.27`, and
   the catalog client needs a matching `datafusion` (pulled in via the
   `rerun-sdk[datafusion]` extra — do **not** depend on `datafusion` directly).
-- **`lerobot`** — pins `rerun-sdk < 0.27`, so its pin is overridden in
-  `[tool.uv] override-dependencies` in `pyproject.toml`.
+- **`lerobot`** — the conversion relies on its private dataset internals, so it
+  is pinned `>=X.Y,<X.(Y+1)` (e.g. `>=0.6.0,<0.7`). Re-verify against those
+  internals before widening the bound.
 
 To upgrade:
 
-1. Bump the lower bounds in `pyproject.toml`:
-   - `dependencies`: `lerobot>=X.Y.Z` and, if the minimum Rerun changed,
-     `rerun-sdk[datafusion]>=A.B`.
-   - `[tool.uv] override-dependencies`: keep `rerun-sdk[datafusion]>=A.B` in sync.
+1. Bump the bounds in `pyproject.toml` `dependencies`:
+   - `lerobot[dataset]>=X.Y.Z,<X.(Y+1)` — bump within the pinned major, or widen
+     the cap only after re-verifying the private-API usage in `converter.py`.
+   - `rerun-sdk[datafusion]>=A.B` if the minimum Rerun changed.
 2. Re-resolve and install:
    ```bash
    uv lock --upgrade
@@ -92,13 +93,11 @@ gh run watch "$(gh run list --workflow release.yml --limit 1 --json databaseId -
 The workflow refuses to publish if the tag does not match `__version__`.
 
 Once published, verify the release installs cleanly from PyPI into a throwaway
-env (note the `rerun-sdk` override, explained in the [README](README.md);
-`uv run --with` can't apply overrides, so use `uv pip install`):
+env (requires Python >= 3.12; no dependency override needed):
 
 ```bash
-uv venv /tmp/verify-rl
-uv pip install --python /tmp/verify-rl "rerun-lerobot==0.NEW.VERSION" \
-  --override <(echo "rerun-sdk[datafusion]>=0.27")
+uv venv /tmp/verify-rl --python 3.12
+uv pip install --python /tmp/verify-rl "rerun-lerobot==0.NEW.VERSION"
 /tmp/verify-rl/bin/rerun-lerobot --help
 ```
 
