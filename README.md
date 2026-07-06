@@ -27,10 +27,7 @@ pip install rerun-lerobot
 ```
 
 Requires **Python ≥ 3.12** and **LeRobot 0.6.x** (the conversion relies on LeRobot's dataset
-internals, so it is pinned `>=0.6.0,<0.7`). LeRobot 0.6 only constrains `rerun-sdk` under its
-optional `viz` extra, so the conversion's requirement of the Rerun OSS server API
-(`rerun-sdk >= 0.27`, pulled in with the `[datafusion]` extra) installs cleanly with no dependency
-override needed.
+internals, so it is pinned `>=0.6.0,<0.7`).
 
 ## Usage
 
