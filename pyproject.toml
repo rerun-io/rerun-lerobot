@@ -3,7 +3,7 @@ name = "rerun-lerobot"
 dynamic = ["version"]
 description = "Convert Rerun RRD recordings into LeRobot v3 datasets."
 readme = "README.md"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.12"
 license = "MIT OR Apache-2.0"
 license-files = ["LICENSE-MIT", "LICENSE-APACHE"]
 authors = [{ name = "Rerun.io", email = "opensource@rerun.io" }]
@@ -12,21 +12,22 @@ classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Science/Research",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Scientific/Engineering",
 ]
 dependencies = [
   "av",
-  "lerobot>=0.4.2",
+  # The `dataset` extra pulls in LeRobot's dataset-writing stack (datasets,
+  # torchcodec, ...), which is what we build on. LeRobot 0.6+ only pins
+  # rerun-sdk under its `viz` extra (which we don't install), so there is no
+  # longer a rerun-sdk version conflict to work around.
+  "lerobot[dataset]>=0.6.0",
   "numpy",
   "pandas",
   "pillow",
   "pyarrow",
   # rr.server.Server (used to query RRD files) requires rerun-sdk >= 0.27.
-  # LeRobot pins rerun-sdk < 0.27, so this constraint is overridden below via
-  # `[tool.uv] override-dependencies`. See the README for non-uv installs.
   # The `datafusion` extra pins a datafusion version compatible with rerun's
   # catalog client (a plain `datafusion` dep resolves too new).
   "rerun-sdk[datafusion]>=0.27",
@@ -65,14 +66,9 @@ packages = ["rerun_lerobot"]
 [tool.hatch.build.targets.sdist]
 include = ["rerun_lerobot", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 
-[tool.uv]
-# LeRobot pins `rerun-sdk < 0.27`, but the OSS server API this package relies on
-# needs `>= 0.27`. Override LeRobot's pin so resolution succeeds.
-override-dependencies = ["rerun-sdk[datafusion]>=0.27"]
-
 # Ruff config adapted from https://github.com/rerun-io/rerun_template
 [tool.ruff]
-target-version = "py310"
+target-version = "py312"
 
 # Enable unsafe fixes to allow ruff to apply fixes that may change the behavior of the code.
 # This is needed because otherwise ruff will not be able to trim whitespaces in (codegened) docstrings.

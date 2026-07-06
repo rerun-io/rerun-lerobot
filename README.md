@@ -26,34 +26,10 @@ See [these docs](https://rerun.io/docs/concepts/train) for how.
 pip install rerun-lerobot
 ```
 
-### ⚠️ Dependency conflict with LeRobot
-
-The conversion relies on the Rerun OSS server API (`rr.server.Server`), which requires
-**`rerun-sdk >= 0.27`**. LeRobot currently pins **`rerun-sdk < 0.27`**, so a naive install will fail
-to resolve. Override LeRobot's pin at install time (and pull the matching `datafusion` via the
-`[datafusion]` extra — a plain `rerun-sdk` upgrade resolves `datafusion` too new for the catalog
-client).
-
-With `uv`, in a project's `pyproject.toml`:
-
-```toml
-[tool.uv]
-override-dependencies = ["rerun-sdk[datafusion]>=0.27"]
-```
-
-Or on the command line (note: `uv run --with` does **not** apply overrides — use `uv pip install`):
-
-```bash
-uv pip install rerun-lerobot --override <(echo "rerun-sdk[datafusion]>=0.27")
-```
-
-With `pip`, install and then force the newer `rerun-sdk` (the resolver will warn about LeRobot's
-pin; that is expected):
-
-```bash
-pip install rerun-lerobot
-pip install --upgrade "rerun-sdk[datafusion]>=0.27"
-```
+Requires **Python ≥ 3.12** and **LeRobot ≥ 0.6** (matching LeRobot's own minimum). LeRobot 0.6
+only constrains `rerun-sdk` under its optional `viz` extra, so the conversion's requirement of the
+Rerun OSS server API (`rerun-sdk >= 0.27`, pulled in with the `[datafusion]` extra) installs
+cleanly with no dependency override needed.
 
 ## Usage
 
@@ -319,14 +295,11 @@ source .venv/bin/activate
 rerun-lerobot --help
 ```
 
-Or, without cloning, install into a throwaway virtualenv with the override applied (`uv run --with`
-can't override LeRobot's transitive `rerun-sdk` pin, so use `uv pip install --override`):
+Or, without cloning, install straight from Git into a throwaway virtualenv:
 
 ```bash
 uv venv /tmp/rl-venv
-uv pip install --python /tmp/rl-venv \
-  "git+https://github.com/rerun-io/rerun-lerobot" \
-  --override <(echo "rerun-sdk[datafusion]>=0.27")
+uv pip install --python /tmp/rl-venv "git+https://github.com/rerun-io/rerun-lerobot"
 /tmp/rl-venv/bin/rerun-lerobot --help
 ```
 
