@@ -14,9 +14,7 @@ Do everything from a clean checkout of `main` with a working `uv` install.
   `rerun-sdk[datafusion]` extra — do **not** depend on `datafusion` directly).
 - **`lerobot`** — the conversion relies on its private dataset internals, so it
   is pinned `>=X.Y,<X.(Y+1)` (e.g. `>=0.6.0,<0.7`). Re-verify against those
-  internals before widening the bound. Since LeRobot 0.6 only constrains
-  `rerun-sdk` under its optional `viz` extra (which we don't install), there is
-  no longer a `rerun-sdk` conflict to override.
+  internals before widening the bound.
 
 To upgrade:
 
