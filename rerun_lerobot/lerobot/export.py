@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 import pyarrow as pa
 import rerun as rr
+from lerobot.configs.video import RGBEncoderConfig
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 from tqdm import tqdm
 
@@ -155,8 +156,9 @@ def convert_dataset_to_lerobot(
     end_time = time.time()
     tqdm.write(f"Inferring features took {end_time - start_time:.2f} seconds")
 
-    # Create LeRobot dataset. use_videos if any camera outputs video; the dataset
-    # vcodec is used by LeRobot when it (re-)encodes video (remuxed cameras bypass it).
+    # Create LeRobot dataset. use_videos if any camera outputs video; the RGB
+    # encoder's vcodec is used by LeRobot when it (re-)encodes video (remuxed
+    # cameras bypass it).
     use_videos = any(not camera.outputs_image for camera in cameras)
     vcodec = _dataset_vcodec(config.output_format)
     lerobot_dataset = LeRobotDataset.create(
@@ -165,7 +167,7 @@ def convert_dataset_to_lerobot(
         features=features,
         root=output_dir,
         use_videos=use_videos,
-        **({"vcodec": vcodec} if use_videos else {}),
+        **({"rgb_encoder": RGBEncoderConfig(vcodec=vcodec)} if use_videos else {}),
     )
 
     # Fetch segment sizes once (used to weight the progress bar and to skip empty

@@ -14,7 +14,7 @@ from rerun_lerobot.lerobot.types import (
 )
 
 if TYPE_CHECKING:
-    from rerun_lerobot.lerobot.converter import apply_remuxed_videos, convert_dataframe_to_episode
+    from rerun_lerobot.lerobot.converter import convert_dataframe_to_episode
     from rerun_lerobot.lerobot.export import (
         convert_catalog_dataset_to_lerobot,
         convert_dataset_to_lerobot,
@@ -39,7 +39,6 @@ if TYPE_CHECKING:
 # Heavy submodules (av, datafusion, lerobot, ...) are imported lazily so that
 # `import rerun_lerobot` stays cheap for callers that only need the data types.
 _LAZY_ATTRS = {
-    "apply_remuxed_videos": "rerun_lerobot.lerobot.converter",
     "can_remux_video": "rerun_lerobot.lerobot.video_processing",
     "convert_catalog_dataset_to_lerobot": "rerun_lerobot.lerobot.export",
     "convert_dataframe_to_episode": "rerun_lerobot.lerobot.converter",
@@ -76,7 +75,6 @@ __all__ = [
     "RemuxInfo",
     "VideoSampleData",
     "VideoSpec",
-    "apply_remuxed_videos",
     "can_remux_video",
     "convert_catalog_dataset_to_lerobot",
     "convert_dataframe_to_episode",
