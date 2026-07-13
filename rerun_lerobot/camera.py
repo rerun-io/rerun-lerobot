@@ -137,6 +137,7 @@ class ResolvedCamera:
     kind: str  # _KIND_VIDEO | _KIND_ENCODED_IMAGE | _KIND_RAW_IMAGE
     source_codec: str | None  # video: h264/hevc/av1; encoded_image: jpeg/png; raw_image: None
     output_format: str  # png | h264 | hevc | av1
+    index_column: str  # timeline the frames are queried on (may differ from the config's)
 
     @property
     def feature_key(self) -> str:

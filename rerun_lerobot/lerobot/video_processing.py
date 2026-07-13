@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import av
-import datafusion as dfn
 import numpy as np
 import pyarrow as pa
 
@@ -62,40 +61,6 @@ def extract_video_samples(table: pa.Table, *, sample_column: str, time_column: s
     if not samples:
         raise ValueError("No video samples available for decoding.")
     return samples, normalize_times(times)
-
-
-def load_video_samples(
-    df: dfn.DataFrame,
-    *,
-    index_column: str,
-    videos: list[VideoSpec],
-) -> dict[str, VideoSampleData]:
-    """
-    Load unaligned video samples for a segment from the catalog dataset.
-
-    Args:
-        df: DataFusion dataframe containing video data
-        index_column: Timeline column name
-        videos: Video stream specifications
-
-    Returns:
-        Dictionary mapping spec key to (samples, times_ns)
-
-    """
-    video_data_cache: dict[str, VideoSampleData] = {}
-    for spec in videos:
-        sample_column = f"{spec['path']}:VideoStream:sample"
-        video_view = df.filter(dfn.col(sample_column).is_not_null())
-
-        video_table = pa.table(video_view.select(index_column, sample_column))
-        samples, times_ns = extract_video_samples(
-            video_table,
-            sample_column=sample_column,
-            time_column=index_column,
-        )
-
-        video_data_cache[spec["key"]] = (samples, times_ns)
-    return video_data_cache
 
 
 def extract_first_video_sample(

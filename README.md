@@ -124,15 +124,33 @@ entity_path:ComponentName:field_name
 
 For example `/robot/action:Scalars:scalars`.
 
+`--action` and `--state` are repeatable: passing several columns concatenates their values
+(in the given order) into a single feature vector. For example, a 7-dim action from a pose
+logged as translation + quaternion:
+
+```bash
+--action /robot/cartesian_command:InstancePoses3D:translations \
+--action /robot/cartesian_command:InstancePoses3D:quaternions
+```
+
+The columns may live on different entities. Output rows are the `--index` timeline rows where
+the *first* action column is present; every other column is resolved per row as its latest
+value at-or-before the row's time ("latest-at") on its own rows, so streams logged at
+different rates or timestamps still line up.
+
 ### Video specification format
 
-Videos are specified as `key:path`:
+Videos are specified as `key:path`, or `key:path:index`:
 
 - `key`: camera identifier (e.g. `front`, `wrist`)
 - `path`: entity path to the video stream (e.g. `/camera/front`)
+- `index` (optional): the timeline the camera's frames are indexed on, when it differs from
+  `--index` (e.g. frames that only carry a `video_time` duration timeline). Such cameras are
+  aligned to the output rows by elapsed time since their respective starts (both streams are
+  assumed to start together).
 
-The converter expects a [`VideoStream`](https://www.rerun.io/docs/reference/types/archetypes/video_stream)
-archetype at the specified paths.
+The path can hold a [`VideoStream`](https://www.rerun.io/docs/reference/types/archetypes/video_stream),
+`EncodedImage`, or `Image` archetype (see below).
 
 ### Camera sources and `--output-format`
 
@@ -171,9 +189,11 @@ are copied straight into MP4 — fast and lossless — provided the source frame
 (video) or written as PNG (image).
 
 **Resampling.** `--fps` resamples the *scalar* streams (action / state / task) — output rows are the
-`--index` timeline frames where the action column is present. Each camera frame is sampled at the
-nearest source frame at-or-before that row's timestamp (latest-at). The frame shape
-`(height, width, 3)` is inferred by decoding one frame; all frames are converted to RGB.
+`--index` timeline frames where the (first) action column is present; state, task, and any further
+action columns are resolved per row via latest-at on their own rows. Each camera frame is sampled at
+the nearest source frame at-or-before that row's timestamp (latest-at); cameras on their own timeline
+(`key:path:index`) are aligned by elapsed time instead. The frame shape `(height, width, 3)` is
+inferred by decoding one frame; all frames are converted to RGB.
 
 ### Full example
 
@@ -218,6 +238,24 @@ config = LeRobotConversionConfig(
     state="/robot/state:Scalars:scalars",
     task="/task:TextDocument:text",
     videos=[VideoSpec(key="front", path="/camera/front")],
+)
+
+# Action and state also accept a list of columns (concatenated per row into one
+# vector), and a camera can name its own index timeline:
+multi_column_config = LeRobotConversionConfig(
+    fps=15,
+    index_column="real_time",
+    action=[
+        "/robot/cartesian_command:InstancePoses3D:translations",
+        "/robot/cartesian_command:InstancePoses3D:quaternions",
+    ],
+    state=[
+        "/robot_left/joint_states:Scalars:scalars",
+        "/robot_right/joint_states:Scalars:scalars",
+    ],
+    task=None,
+    task_default="Pick up the block",
+    videos=[VideoSpec(key="front", path="/camera/front", index="video_time")],
 )
 
 # From a local directory of RRD files:

@@ -65,8 +65,9 @@ def resolve_cameras(
     *,
     videos: list[VideoSpec],
     schema_names: list[str],
-    inference_table: pa.Table,
+    camera_tables: dict[str, pa.Table],
     requested_format: str | None,
+    default_index_column: str,
 ) -> list[ResolvedCamera]:
     """
     Resolve every camera spec to its source kind, source codec, and output format.
@@ -80,6 +81,7 @@ def resolve_cameras(
     for spec in videos:
         path = spec["path"]
         kind = cam.detect_camera_kind(schema_names, path)
+        inference_table = camera_tables[spec["key"]]
 
         source_codec: str | None = None
         if kind == "video":
@@ -100,7 +102,12 @@ def resolve_cameras(
         output_format = cam.resolve_output_format(kind=kind, source_codec=source_codec, requested=requested)
         resolved.append(
             ResolvedCamera(
-                key=spec["key"], path=path, kind=kind, source_codec=source_codec, output_format=output_format
+                key=spec["key"],
+                path=path,
+                kind=kind,
+                source_codec=source_codec,
+                output_format=output_format,
+                index_column=spec.get("index", default_index_column),
             )
         )
     return resolved
@@ -167,8 +174,9 @@ def extract_camera_frames_at_times(
     *,
     index_column: str,
     target_times_ns: npt.NDArray[np.int64],
+    elapsed_alignment: bool = False,
 ) -> list[npt.NDArray[np.uint8]]:
-    """Decode one RGB frame per target time for a camera, using latest-at selection."""
+    """Decode one RGB frame per target time (latest-at; elapsed times when timelines differ)."""
     if camera.kind == "video":
         samples: list[bytes] = []
         times: list[object] = []
@@ -182,9 +190,12 @@ def extract_camera_frames_at_times(
             times.append(timestamp)
         if not samples:
             raise ValueError(f"No video samples for camera '{camera.key}'.")
+        times_ns = normalize_times(times)
+        if elapsed_alignment:
+            times_ns = times_ns - times_ns[0]
         return decode_video_frames_at_times(
             samples=samples,
-            times_ns=normalize_times(times),
+            times_ns=times_ns,
             target_times_ns=target_times_ns,
             video_format=camera.source_codec or "h264",
         )
@@ -211,5 +222,8 @@ def extract_camera_frames_at_times(
     if not frames:
         raise ValueError(f"No image samples for camera '{camera.key}' at '{camera.path}'.")
 
-    selected = _latest_at_indices(np.asarray(frame_times, dtype=np.int64), target_times_ns)
+    frame_times_ns = np.asarray(frame_times, dtype=np.int64)
+    if elapsed_alignment:
+        frame_times_ns = frame_times_ns - frame_times_ns.min()
+    selected = _latest_at_indices(frame_times_ns, target_times_ns)
     return [frames[i] for i in selected]
