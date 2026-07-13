@@ -32,7 +32,7 @@ See `_unwrap_list_type()` and `classify_schema()` in `rerun_lerobot/inspection.p
 **Want:** `rr.catalog.dataset_from_url("rerun://host:443/entry/<id>", token=...)` (or
 `CatalogClient.from_dataset_url(...)`) returning a connected `DatasetEntry`.
 
-**Workaround:** manually split `rerun://host:port/entry/<id>` into `(origin, entry_id)`, construct
+**Workaround:** manually split `rerun://<host>:<port>/entry/<id>` into `(origin, entry_id)`, construct
 `CatalogClient(origin, token=...)`, then `get_dataset(id=entry_id)`.
 See `split_dataset_url()` in `rerun_lerobot/utils.py` and `convert_dataset_url_to_lerobot()` /
 `inspect_dataset_url()` in `rerun_lerobot/lerobot/export.py`.

@@ -65,7 +65,7 @@ def _parse_args() -> argparse.Namespace:
     source.add_argument(
         "--catalog-url",
         default=None,
-        help="URL of a Rerun catalog server (e.g. 'rerun+http://host:port'). Use with --dataset-name.",
+        help="URL of a Rerun catalog server (e.g. 'rerun+http://<host>:<port>'). Use with --dataset-name.",
     )
     source.add_argument(
         "--dataset-url",

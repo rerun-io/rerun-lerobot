@@ -305,7 +305,7 @@ def convert_catalog_dataset_to_lerobot(
     looks the dataset up by name.
 
     Args:
-        catalog_url: URL of the Rerun catalog server (e.g. ``rerun+http://host:port``).
+        catalog_url: URL of the Rerun catalog server (e.g. ``rerun+http://<host>:<port>``).
         dataset_name: Name of the dataset in the catalog.
         output_dir: Output directory for the LeRobot dataset.
         repo_id: LeRobot repo ID.
