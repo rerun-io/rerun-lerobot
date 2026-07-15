@@ -47,6 +47,13 @@ def align_scalar_columns(
     """Align every scalar column to the reference column's non-null rows via per-column latest-at."""
     times_ns = normalize_times(table[config.index_column].combine_chunks().to_numpy(zero_copy_only=False))
 
+    # The latest-at lookups below (and the episode timestamps derived from the
+    # returned times) require rows in ascending index order.
+    if times_ns.size and np.any(np.diff(times_ns) < 0):
+        order = np.argsort(times_ns, kind="stable")
+        table = table.take(pa.array(order))
+        times_ns = times_ns[order]
+
     reference_column = config.reference_column
     reference_rows = _valid_indices(table, reference_column)
     if reference_rows.size == 0:
