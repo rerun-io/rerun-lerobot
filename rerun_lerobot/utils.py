@@ -74,7 +74,8 @@ def normalize_times(values: Iterable[object]) -> npt.NDArray[np.int64]:
     Normalize time values to nanosecond precision int64.
 
     Args:
-        values: Iterable of time values (datetime64, timedelta64, float, int, or Pandas Timestamp)
+        values: Iterable of time values (datetime64, timedelta64, float, int, or
+            Pandas Timestamp/Timedelta)
 
     Returns:
         Int64 array representing nanoseconds
@@ -85,12 +86,11 @@ def normalize_times(values: Iterable[object]) -> npt.NDArray[np.int64]:
     """
     times = np.asarray(list(values))
 
-    # Handle Pandas Timestamp objects
+    # Handle Pandas Timestamp/Timedelta objects (both expose .value in ns)
     if times.dtype == object and len(times) > 0:
         import pandas as pd
 
-        if isinstance(times[0], pd.Timestamp):
-            # Convert Pandas Timestamps to int64 nanoseconds
+        if isinstance(times[0], (pd.Timestamp, pd.Timedelta)):
             return np.array([t.value for t in times], dtype="int64")
 
     if np.issubdtype(times.dtype, np.datetime64):
@@ -185,7 +185,7 @@ def split_dataset_url(dataset_url: str) -> tuple[str, str]:
 
     parsed = urlparse(dataset_url)
     if not parsed.scheme or not parsed.netloc:
-        raise ValueError(f"Invalid dataset URL (expected e.g. 'rerun://host:port/entry/<id>'): {dataset_url}")
+        raise ValueError(f"Invalid dataset URL (expected e.g. 'rerun://<host>:<port>/entry/<id>'): {dataset_url}")
 
     parts = [part for part in parsed.path.split("/") if part]
     # Accept both `/entry/<id>` and a bare trailing `<id>`.

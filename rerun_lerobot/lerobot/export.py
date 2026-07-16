@@ -12,7 +12,7 @@ from lerobot.configs.video import RGBEncoderConfig
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 from tqdm import tqdm
 
-from rerun_lerobot.camera import LEROBOT_VCODEC, detect_camera_kind
+from rerun_lerobot.camera import LEROBOT_VCODEC
 from rerun_lerobot.inspection import DatasetInspection, classify_schema
 from rerun_lerobot.lerobot.cameras import resolve_cameras
 from rerun_lerobot.lerobot.converter import convert_dataframe_to_episode
@@ -20,9 +20,10 @@ from rerun_lerobot.lerobot.feature_inference import infer_features
 from rerun_lerobot.utils import split_dataset_url
 
 if TYPE_CHECKING:
+    import datafusion as dfn
     from rerun.catalog import DatasetEntry
 
-    from rerun_lerobot.lerobot.types import LeRobotConversionConfig
+    from rerun_lerobot.lerobot.types import LeRobotConversionConfig, VideoSpec
 
 
 def _dataset_vcodec(output_format: str | None) -> str:
@@ -37,6 +38,17 @@ def _num_segments(dataset: DatasetEntry) -> int | None:
         return len(dataset.segment_ids())
     except Exception:
         return None
+
+
+def _camera_reader(
+    dataset: DatasetEntry,
+    segment_id: str,
+    config: LeRobotConversionConfig,
+    spec: VideoSpec,
+) -> dfn.DataFrame:
+    """One camera's per-segment dataframe: its entity only, on its own index timeline."""
+    view = dataset.filter_segments(segment_id).filter_contents([spec["path"]])
+    return view.reader(index=config.camera_index_column(spec))
 
 
 def inspect_dataset(dataset: DatasetEntry) -> DatasetInspection:
@@ -117,42 +129,33 @@ def convert_dataset_to_lerobot(
 
     schema_names = list(dataset.arrow_schema().names)
 
-    # Detect each camera's source archetype (from the schema) so we know which
-    # columns to query for inference.
-    camera_columns: list[str] = []
-    for spec in config.videos:
-        kind = detect_camera_kind(schema_names, spec["path"])
-        if kind == "video":
-            camera_columns.append(f"{spec['path']}:VideoStream:sample")
-        elif kind == "encoded_image":
-            camera_columns.append(f"{spec['path']}:EncodedImage:blob")
-        else:  # raw_image
-            camera_columns.append(f"{spec['path']}:Image:buffer")
-            camera_columns.append(f"{spec['path']}:Image:format")
-
-    inference_columns = [config.index_column, config.action, config.state]
+    inference_columns = list(dict.fromkeys([config.index_column, *config.action_columns, *config.state_columns]))
     if config.task:
         inference_columns.append(config.task)
-    inference_columns.extend(camera_columns)
 
-    # Query all columns from one segment
+    # Query the scalar columns from one segment; cameras each get their own query.
     inference_view = dataset.filter_segments(inference_segment_id).filter_contents(contents)
     inference_reader = inference_view.reader(index=config.index_column)
     inference_table = pa.table(inference_reader.select(*inference_columns))
+
+    camera_tables = {
+        spec["key"]: pa.table(_camera_reader(dataset, inference_segment_id, config, spec)) for spec in config.videos
+    }
 
     # Resolve each camera's source codec and output format.
     cameras = resolve_cameras(
         videos=config.videos,
         schema_names=schema_names,
-        inference_table=inference_table,
+        camera_tables=camera_tables,
         requested_format=config.output_format,
+        default_index_column=config.index_column,
     )
     for camera in cameras:
         tqdm.write(f"Camera '{camera.key}': {camera.kind} ({camera.source_codec}) -> {camera.output_format}")
 
     tqdm.write(f"Inferring features from segment: {inference_segment_id}")
     start_time = time.time()
-    features = infer_features(table=inference_table, config=config, cameras=cameras)
+    features = infer_features(table=inference_table, config=config, cameras=cameras, camera_tables=camera_tables)
     end_time = time.time()
     tqdm.write(f"Inferring features took {end_time - start_time:.2f} seconds")
 
@@ -197,6 +200,7 @@ def convert_dataset_to_lerobot(
 
                 view = dataset.filter_segments(segment_id).filter_contents(contents)
                 df = view.reader(index=config.index_column)
+                camera_dfs = {spec["key"]: _camera_reader(dataset, segment_id, config, spec) for spec in config.videos}
 
                 convert_dataframe_to_episode(
                     df,
@@ -205,6 +209,7 @@ def convert_dataset_to_lerobot(
                     segment_id=segment_id,
                     features=features,
                     cameras=cameras,
+                    camera_dfs=camera_dfs,
                 )
                 converted += 1
 
@@ -300,7 +305,7 @@ def convert_catalog_dataset_to_lerobot(
     looks the dataset up by name.
 
     Args:
-        catalog_url: URL of the Rerun catalog server (e.g. ``rerun+http://host:port``).
+        catalog_url: URL of the Rerun catalog server (e.g. ``rerun+http://<host>:<port>``).
         dataset_name: Name of the dataset in the catalog.
         output_dir: Output directory for the LeRobot dataset.
         repo_id: LeRobot repo ID.

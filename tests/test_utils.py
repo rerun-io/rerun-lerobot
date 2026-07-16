@@ -95,7 +95,6 @@ def test_config_get_filter_list() -> None:
         "/robot/action",
         "/robot/state",
         "/task",
-        "/camera/front",
     ]
 
 

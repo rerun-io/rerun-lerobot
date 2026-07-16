@@ -95,6 +95,36 @@ def test_convert_rrd_dir_to_lerobot(rrd_dir: Path, tmp_path: Path) -> None:
     _assert_valid_dataset(output_dir)
 
 
+def test_convert_multi_column_action(rrd_dir: Path, tmp_path: Path) -> None:
+    """Multiple action columns are concatenated into one feature vector (3 + 4 = 7)."""
+    from rerun_lerobot.lerobot.export import convert_rrd_dataset_to_lerobot
+
+    config = LeRobotConversionConfig(
+        fps=10,
+        index_column="log_time",
+        action=[
+            "/transforms:Transform3D:translation",
+            "/transforms:Transform3D:quaternion",
+        ],
+        state="/transforms:Transform3D:quaternion",
+        task=None,
+        videos=[],
+    )
+    output_dir = tmp_path / "dataset"
+    convert_rrd_dataset_to_lerobot(
+        rrd_dir=rrd_dir,
+        output_dir=output_dir,
+        dataset_name=DATASET_NAME,
+        repo_id=DATASET_NAME,
+        config=config,
+    )
+
+    info = json.loads((output_dir / "meta" / "info.json").read_text(encoding="utf-8"))
+    assert tuple(info["features"]["action"]["shape"]) == (7,)
+    assert tuple(info["features"]["observation.state"]["shape"]) == (4,)
+    assert info["total_frames"] > 0
+
+
 def test_inspect_rrd_dataset(rrd_dir: Path) -> None:
     from rerun_lerobot.lerobot.export import inspect_rrd_dataset
 

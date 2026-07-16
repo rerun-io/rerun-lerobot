@@ -29,11 +29,22 @@ def _parse_video_specs(raw_specs: list[str]) -> list[VideoSpec]:
     specs: list[VideoSpec] = []
     for raw_spec in raw_specs:
         parts = raw_spec.split(":")
-        if len(parts) != 2:
-            raise ValueError("Video spec must be formatted as key:path (videostream only).")
-        key, path = parts
-        specs.append(VideoSpec(key=key, path=path))
+        if len(parts) == 2:
+            key, path = parts
+            specs.append(VideoSpec(key=key, path=path))
+        elif len(parts) == 3:
+            key, path, index = parts
+            specs.append(VideoSpec(key=key, path=path, index=index))
+        else:
+            raise ValueError("Video spec must be formatted as key:path or key:path:index.")
     return specs
+
+
+def _parse_columns(raw: list[str] | None) -> str | list[str] | None:
+    """One repeated column flag -> a single column string, several -> a list."""
+    if not raw:
+        return None
+    return raw[0] if len(raw) == 1 else raw
 
 
 def _parse_name_list(raw: str | None) -> list[str] | None:
@@ -54,7 +65,7 @@ def _parse_args() -> argparse.Namespace:
     source.add_argument(
         "--catalog-url",
         default=None,
-        help="URL of a Rerun catalog server (e.g. 'rerun+http://host:port'). Use with --dataset-name.",
+        help="URL of a Rerun catalog server (e.g. 'rerun+http://<host>:<port>'). Use with --dataset-name.",
     )
     source.add_argument(
         "--dataset-url",
@@ -83,14 +94,27 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--fps", type=int, default=None, help="Target dataset FPS.")
     parser.add_argument("--index", default="real_time", help="Timeline to align on (e.g. real_time).")
-    parser.add_argument("--action", default=None, help="Fully qualified action column (e.g. 'path:Component:field').")
-    parser.add_argument("--state", default=None, help="Fully qualified state column (e.g. 'path:Component:field').")
+    parser.add_argument(
+        "--action",
+        action="append",
+        default=None,
+        help="Fully qualified action column (e.g. 'path:Component:field'). "
+        "Repeatable; multiple columns are concatenated in order into one action vector.",
+    )
+    parser.add_argument(
+        "--state",
+        action="append",
+        default=None,
+        help="Fully qualified state column (e.g. 'path:Component:field'). "
+        "Repeatable; multiple columns are concatenated in order into one state vector.",
+    )
     parser.add_argument("--task", default=None, help="Fully qualified task column (e.g. 'path:Component:field').")
     parser.add_argument(
         "--video",
         action="append",
         default=[],
-        help="Video stream spec as key:path. Repeatable.",
+        help="Camera spec as key:path, or key:path:index for cameras whose frames "
+        "live on their own timeline (e.g. front:/camera/front:video_time). Repeatable.",
     )
     parser.add_argument("--segments", nargs="*", default=None, help="Optional list of segment ids to convert.")
     parser.add_argument("--max-segments", type=int, default=None, help="Limit number of segments.")
@@ -152,11 +176,14 @@ def main() -> None:
         raise ValueError("--output is required to convert.")
 
     video_specs = _parse_video_specs(args.video)
+    action = _parse_columns(args.action)
+    state = _parse_columns(args.state)
+    assert action is not None and state is not None  # guided mode returned above otherwise
     config = LeRobotConversionConfig(
         fps=args.fps,
         index_column=args.index,
-        action=args.action,
-        state=args.state,
+        action=action,
+        state=state,
         task=args.task,
         videos=video_specs,
         output_format=args.output_format,

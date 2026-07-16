@@ -43,6 +43,7 @@ class VideoSpec(TypedDict):
     key: str
     path: str
     video_format: NotRequired[str]
+    index: NotRequired[str]
 
 
 @dataclass(frozen=True)
@@ -53,9 +54,9 @@ class LeRobotConversionConfig:
     fps: int
     index_column: str
 
-    # Column specifications
-    action: str
-    state: str
+    # Column specifications; a list of columns is concatenated per row, in order.
+    action: str | list[str]
+    state: str | list[str]
     task: str | None
 
     # Camera specifications (video streams and/or image streams).
@@ -72,38 +73,52 @@ class LeRobotConversionConfig:
     # Task configuration
     task_default: str = "task"
 
+    @property
+    def action_columns(self) -> list[str]:
+        """The action columns as a list."""
+        return [self.action] if isinstance(self.action, str) else list(self.action)
+
+    @property
+    def state_columns(self) -> list[str]:
+        """The state columns as a list."""
+        return [self.state] if isinstance(self.state, str) else list(self.state)
+
+    @property
+    def reference_column(self) -> str:
+        """The column whose non-null rows define the output rows."""
+        return self.action_columns[0]
+
+    def camera_index_column(self, spec: VideoSpec) -> str:
+        """The timeline a camera's frames are queried on (its own index, or the config's)."""
+        return spec.get("index", self.index_column)
+
     def get_filter_list(self) -> tuple[list[str], str | None]:
         """
         Get the list of entity paths to filter and the reference path for time alignment.
 
+        Cameras are not included; each gets its own query on its own index timeline.
+
         Returns:
             A tuple of (contents, reference_path) where:
-            - contents: List of unique entity paths to include in the query
+            - contents: List of unique entity paths to include in the scalar query
             - reference_path: The entity path to use as reference for time alignment (action or state)
 
         """
         contents: list[str] = []
         reference_path: str | None = None
 
-        entity_path = get_entity_path(self.action)
-        if entity_path is not None:
-            contents.append(entity_path)
+        for column in [*self.action_columns, *self.state_columns]:
+            entity_path = get_entity_path(column)
+            if entity_path is None:
+                continue
+            if entity_path not in contents:
+                contents.append(entity_path)
             if reference_path is None:
                 reference_path = entity_path
-
-        entity_path = get_entity_path(self.state)
-        if entity_path is not None and entity_path not in contents:
-            contents.append(entity_path)
-        if reference_path is None and entity_path is not None:
-            reference_path = entity_path
 
         if self.task:
             entity_path = get_entity_path(self.task)
             if entity_path is not None and entity_path not in contents:
                 contents.append(entity_path)
-
-        for spec in self.videos:
-            if spec["path"] not in contents:
-                contents.append(spec["path"])
 
         return contents, reference_path
