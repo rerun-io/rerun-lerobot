@@ -72,6 +72,13 @@ def resolve_cameras(
     """
     Resolve every camera spec to its source kind, source codec, and output format.
 
+    Args:
+        videos: Camera specs to resolve
+        schema_names: Column names from the recording schema, used to detect the source archetype
+        camera_tables: Per-camera inference table, keyed by camera key
+        requested_format: User-requested output format, or None to derive it from the source
+        default_index_column: Index column to use for cameras whose spec doesn't set one
+
     Raises:
         ValueError: If a camera has no supported archetype or an unusable format.
 
